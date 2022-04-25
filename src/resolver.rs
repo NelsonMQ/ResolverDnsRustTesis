@@ -473,6 +473,16 @@ impl Resolver {
                 let answer_id = dns_message.get_query_id();
                 let queries_hash_by_id_copy = queries_hash_by_id.clone();
 
+                let header = dns_message.get_header().get_tc();
+
+                println!(
+                    "##########################################################################"
+                );
+                println!("Truncado: {}", header);
+                println!(
+                    "##########################################################################"
+                );
+
                 println!("Response ID: {}", answer_id);
                 println!(
                     "qname: {}",

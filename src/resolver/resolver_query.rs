@@ -783,11 +783,13 @@ impl ResolverQuery {
         self.set_index_to_choose((index_to_choose + 1) % slist.len() as u16);
         //
 
-        // Implementar: se deben consultar las ips de los ns que no tienen ips
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Se deben consultar las ips de los ns que no tienen ips, esto se hace solamente si no hay ips a quien preguntar,
+        // en la función al inicializar la slist. Ya que o sino puede generar loops infinitos.
 
-        self.send_internal_queries_for_slist_udp(self.get_slist(), socket.try_clone().unwrap());
+        //self.send_internal_queries_for_slist_udp(self.get_slist(), socket.try_clone().unwrap());
 
-        ///////////////////////////////////////////////
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
         let query_msg = self.create_query_message();
         let msg_to_bytes = query_msg.to_bytes();
