@@ -75,9 +75,10 @@ impl Resolver {
         update_cache_sender_ns_udp: Sender<(String, String, u32)>,
         update_cache_sender_ns_tcp: Sender<(String, String, u32)>,
     ) -> Self {
+        // Creates a new cache
         let mut cache = DnsCache::new();
-        cache.set_max_size(1000);
 
+        // Creates a Resolver instance
         let resolver = Resolver {
             ip_address: String::from(""),
             sbelt: Slist::new(),
@@ -100,6 +101,7 @@ impl Resolver {
         resolver
     }
 
+    //Runs a tcp and udp resolver
     pub fn run_resolver(
         &mut self,
         rx_add_udp: Receiver<(String, ResourceRecord)>,
@@ -111,7 +113,10 @@ impl Resolver {
         rx_update_zone_udp: Receiver<NSZone>,
         rx_update_zone_tcp: Receiver<NSZone>,
     ) {
+        // Copy the resolver instance to use it in udp resolver
         let mut resolver_copy = self.clone();
+
+        // Runs an udp resolver
         thread::spawn(move || {
             resolver_copy.run_resolver_udp(
                 rx_add_udp,
@@ -121,6 +126,7 @@ impl Resolver {
             );
         });
 
+        // Runs a tcp resolver
         self.run_resolver_tcp(
             rx_add_tcp,
             rx_delete_tcp,
@@ -180,10 +186,12 @@ impl Resolver {
             let mut dns_message_option =
                 Resolver::receive_udp_msg(socket.try_clone().unwrap(), messages.clone());
 
+            // Creates an empty msg and address
             let (mut dns_message, mut src_address) = (DnsMessage::new(), "".to_string());
 
             println!("{}", "Message recv");
 
+            // Check if it is all the message
             match dns_message_option {
                 Some(val) => {
                     dns_message = val.0;
@@ -347,14 +355,16 @@ impl Resolver {
 
             ////////////////////////////////////////////////////////////////////
 
-            let mut resolver = self.clone();
-
             println!("{}", "Message parsed");
 
             // We get the msg type, it can be query or answer
             let msg_type = dns_message.get_header().get_qr();
 
             println!("Msg type: {}", msg_type.clone());
+
+            // We create all necessary to create a resolver query instance
+
+            let mut resolver = self.clone();
 
             let tx_add_udp_copy = tx_add_udp.clone();
             let tx_delete_udp_copy = tx_delete_udp.clone();
@@ -375,8 +385,9 @@ impl Resolver {
 
             let src_address_copy = src_address.clone();
 
-            // If it is query
+            // If the message is a query
             if msg_type == false {
+                // Gets hte information to initialize a resolver query instance
                 let sname = dns_message.get_question().get_qname().get_name();
                 let stype = dns_message.get_question().get_qtype();
                 let sclass = dns_message.get_question().get_qclass();
@@ -388,6 +399,7 @@ impl Resolver {
 
                 let (tx_update_self_slist, rx_update_self_slist) = mpsc::channel();
 
+                // Creates the resolver query instance
                 let mut resolver_query = ResolverQuery::new(
                     tx_add_udp_copy,
                     tx_delete_udp_copy,
@@ -431,11 +443,15 @@ impl Resolver {
                 let dns_msg_copy = dns_message.clone();
                 let tx_query_delete_clone = tx_delete_query_copy.clone();
 
+                // Creates the thread to process the query
                 thread::spawn(move || {
+                    // Get local answer if it exists, or send the query to name server in other case
                     let answer_local = resolver_query
                         .step_1_udp(socket_copy.try_clone().unwrap(), rx_update_self_slist);
 
+                    // Checks if there was a local answer
                     match answer_local {
+                        // If there was a local answer, we send the response to the client
                         Some(val) => {
                             println!("Local info!");
 
@@ -461,6 +477,7 @@ impl Resolver {
                                 &socket_copy,
                             );
                         }
+                        // We do nothing
                         None => {}
                     }
 
@@ -468,11 +485,13 @@ impl Resolver {
                 });
             }
 
+            // If the message is a response
             if msg_type == true {
                 let socket_copy = socket.try_clone().unwrap();
                 let answer_id = dns_message.get_query_id();
                 let queries_hash_by_id_copy = queries_hash_by_id.clone();
 
+                /////////////////////////       DEBUG       //////////////////////////////////////////////////
                 let header = dns_message.get_header().get_tc();
 
                 println!(
@@ -495,23 +514,29 @@ impl Resolver {
                     dns_message.get_additional().len()
                 );
 
+                /////////////////////////////////////////////////////////////////////////////
+
+                // Checks the id from the message
                 if queries_hash_by_id_copy.contains_key(&answer_id) {
                     println!("Message answer ID checked");
 
+                    // Create necessary channels
                     let tx_query_delete_clone = tx_delete_query.clone();
                     let tx_query_update_clone = tx_update_query.clone();
 
+                    // Creates thread to procces the response
                     thread::spawn(move || {
                         let mut resolver_query =
                             queries_hash_by_id_copy.get(&answer_id).unwrap().clone();
 
+                        // Calculates the response time
                         let last_query_timestamp = resolver_query.get_last_query_timestamp();
                         let now = Utc::now();
                         let timestamp_ms = now.timestamp_millis() as u64;
 
                         let response_time: u32 = (timestamp_ms - last_query_timestamp) as u32;
 
-                        // Send request to update cache to resolver and name server
+                        // Send request to update resolver and name server cache
                         tx_update_cache_udp_copy.send((
                             resolver_query.get_last_query_hostname(),
                             src_address_copy.clone(),
@@ -537,21 +562,26 @@ impl Resolver {
                         ));
                         //
 
+                        // Updates resolver query cache
                         resolver_query.set_cache(resolver.get_cache());
 
+                        // Set channel to update slist in resolver query
                         let (tx_update_self_slist, rx_update_self_slist) = mpsc::channel();
-
                         resolver_query.set_tx_update_self_slist(tx_update_self_slist);
 
+                        // Process message
                         let response = match resolver_query.clone().step_4_udp(
                             dns_message,
                             socket_copy.try_clone().unwrap(),
                             rx_update_self_slist,
                         ) {
+                            // Checks the answer
                             Some(val) => {
                                 let is_internal_query = resolver_query.get_internal_query();
 
+                                // If the response was from a client query
                                 if is_internal_query == false {
+                                    // Gets the info to creates a response msg
                                     let mut msg = val.clone();
                                     let mut header = msg.get_header();
                                     let old_id = resolver_query.get_old_id();
@@ -559,31 +589,37 @@ impl Resolver {
                                     let authority = msg.get_authority();
                                     let additional = msg.get_additional();
 
+                                    // Sets the response msg
                                     header.set_id(old_id);
                                     header.set_ancount(answer.len() as u16);
                                     header.set_nscount(authority.len() as u16);
                                     header.set_arcount(additional.len() as u16);
                                     msg.set_header(header);
 
+                                    // Deletes the query from query_id list
                                     tx_query_delete_clone.send(resolver_query.clone());
 
+                                    // Sends the response to the client
                                     Resolver::send_answer_by_udp(
                                         msg,
                                         resolver_query.get_src_address(),
                                         &socket_copy,
                                     );
                                 } else {
+                                    // The responde was from an internal query
                                     let mut msg = val.clone();
                                     let answers = msg.get_answer();
                                     let host_name = answers[0].clone().get_name().get_name();
                                     let resolver_query_id_to_update =
                                         resolver_query.get_query_id_update_slist();
 
+                                    // Gets the resolver query of the internal query
                                     let mut resolver_query_to_update_result =
                                         queries_hash_by_id_copy.get(&resolver_query_id_to_update);
 
                                     match resolver_query_to_update_result {
                                         Some(val) => {
+                                            // Info needed to update slist in internal query
                                             let mut resolver_query_to_update = val.clone();
                                             let mut slist_to_update =
                                                 resolver_query_to_update.get_slist();
@@ -591,6 +627,7 @@ impl Resolver {
                                                 slist_to_update.get_ns_list();
                                             let mut ns_index = 0;
 
+                                            // Updates the slist from a query
                                             for ns in ns_list_to_update.clone() {
                                                 let answers_copy = answers.clone();
                                                 let ns_name = ns
@@ -598,16 +635,20 @@ impl Resolver {
                                                     .unwrap()
                                                     .to_string();
 
+                                                // DEBUG //////////////
                                                 println!(
                                                     "ns name: {} - host name: {}",
                                                     ns_name.clone(),
                                                     host_name.clone()
                                                 );
+                                                ///////////////////////
 
                                                 if ns_name == host_name {
+                                                    // Deletes the old NS record in slist
                                                     ns_list_to_update.remove(ns_index);
 
                                                     for answer in answers_copy {
+                                                        // Gets the NS ip address
                                                         let ip = match answer.get_rdata() {
                                                             Rdata::SomeARdata(val) => {
                                                                 val.get_string_address()
@@ -615,6 +656,7 @@ impl Resolver {
                                                             _ => unreachable!(),
                                                         };
 
+                                                        // Creates the new NS
                                                         let mut new_ns_to_ask = HashMap::new();
 
                                                         new_ns_to_ask.insert(
@@ -628,16 +670,17 @@ impl Resolver {
                                                             "5000".to_string(),
                                                         );
 
+                                                        // Add the NS to the update list
                                                         ns_list_to_update.push(new_ns_to_ask);
                                                     }
                                                 }
                                                 ns_index = ns_index + 1;
                                             }
 
+                                            // Sets the new slist
                                             slist_to_update.set_ns_list(ns_list_to_update);
                                             resolver_query_to_update
                                                 .set_slist(slist_to_update.clone());
-
                                             resolver_query_to_update
                                                 .get_tx_update_self_slist()
                                                 .send(slist_to_update);
@@ -648,6 +691,7 @@ impl Resolver {
                                     }
                                 }
                             }
+                            // We do nothing
                             None => {}
                         };
                     });
@@ -698,6 +742,7 @@ impl Resolver {
         loop {
             println!("{}", "Waiting msg");
 
+            // Accept connection
             match listener.accept() {
                 Ok((mut stream, src_address)) => {
                     // Updates zones
@@ -781,7 +826,7 @@ impl Resolver {
 
                     self.set_cache(cache);
 
-                    ////////////////////////////////////////////////////////////////////
+                    /////////////////////////////////
 
                     println!("New connection: {}", stream.peer_addr().unwrap());
 
@@ -791,6 +836,7 @@ impl Resolver {
 
                     println!("{}", "Message recv");
 
+                    // Create necessary channels
                     let tx_add_udp_copy = tx_add_udp.clone();
                     let tx_delete_udp_copy = tx_delete_udp.clone();
                     let tx_add_tcp_copy = tx_add_tcp.clone();
@@ -810,13 +856,19 @@ impl Resolver {
 
                     let resolver = self.clone();
 
+                    // Parse the message
                     let dns_message_parse_result = DnsMessage::from_bytes(&received_msg);
 
+                    // Checks the parse
                     match dns_message_parse_result {
+                        // We do nothing if it's right
                         Ok(_) => {}
+                        // We send a format error in other case
                         Err(_) => {
+                            // Creates a format error msg
                             let dns_format_error_msg = DnsMessage::format_error_msg();
 
+                            // Sends the answer
                             Resolver::send_answer_by_tcp(
                                 dns_format_error_msg,
                                 stream.peer_addr().unwrap().to_string(),
@@ -827,6 +879,7 @@ impl Resolver {
                         }
                     }
 
+                    // Creates a new thread to process the msg
                     thread::spawn(move || {
                         let dns_message = dns_message_parse_result.unwrap();
 
@@ -835,7 +888,9 @@ impl Resolver {
                         // We get the msg type, it can be query or answer
                         let msg_type = dns_message.get_header().get_qr();
 
+                        // If the msg is a query
                         if msg_type == false {
+                            // Gets the info to create a resolver query
                             let sname = dns_message.get_question().get_qname().get_name();
                             let stype = dns_message.get_question().get_qtype();
                             let sclass = dns_message.get_question().get_qclass();
@@ -846,6 +901,7 @@ impl Resolver {
                             let (tx_update_slist_tcp, rx_update_slist_tcp) = mpsc::channel();
                             let (tx_update_self_slist, rx_update_self_slist) = mpsc::channel();
 
+                            // Creates a resolver query instance
                             let mut resolver_query = ResolverQuery::new(
                                 tx_add_udp_copy,
                                 tx_delete_udp_copy,
@@ -880,11 +936,13 @@ impl Resolver {
                                 id,
                             );
 
+                            // Process the query and gets the answer
                             let mut answer_msg =
                                 resolver_query.step_1_tcp(dns_message, rx_update_slist_tcp);
 
                             answer_msg.set_query_id(resolver_query.get_old_id());
 
+                            // Sends the answer to the client
                             Resolver::send_answer_by_tcp(
                                 answer_msg,
                                 stream.peer_addr().unwrap().to_string(),
@@ -905,24 +963,33 @@ impl Resolver {
 
 // Utils
 impl Resolver {
+    // Receives and UDP message
     pub fn receive_udp_msg(
         mut socket: UdpSocket,
         mut messages: HashMap<u16, DnsMessage>,
     ) -> Option<(DnsMessage, String)> {
+        // 512 bytes buffer
         let mut msg = [0; 512];
+
+        // receives a msg
         let (number_of_bytes_msg, address) = match socket.recv_from(&mut msg) {
             Ok((bytes, addr)) => (bytes, addr.to_string()),
             Err(e) => (0, "".to_string()),
         };
 
+        //// DEBUG ////
         println!("msg len: {}", number_of_bytes_msg);
+        //////////////
 
+        // If there is a empty msg
         if number_of_bytes_msg == 0 {
             return None;
         }
 
+        // Parse the msg
         let dns_msg_parsed_result = DnsMessage::from_bytes(&msg);
 
+        // Returns a format error msg if the parse is not right
         match dns_msg_parsed_result {
             Ok(_) => {}
             Err(_) => {
@@ -930,13 +997,14 @@ impl Resolver {
             }
         }
 
+        // Gets the parsed msg and the query id
         let dns_msg_parsed = dns_msg_parsed_result.unwrap();
-
         let query_id = dns_msg_parsed.get_query_id();
         //let trunc = dns_msg_parsed.get_header().get_tc();
 
         let trunc = false;
 
+        /// DEBUG/////
         println!("Truncado: {}", trunc);
 
         println!(
@@ -945,7 +1013,9 @@ impl Resolver {
             dns_msg_parsed.get_authority().len(),
             dns_msg_parsed.get_additional().len()
         );
+        /////////////////////////
 
+        // Checks if the query id exists in resolver list
         match messages.get(&query_id) {
             Some(mut val) => {
                 let mut msg = val.clone();
@@ -979,17 +1049,23 @@ impl Resolver {
         }
     }
 
+    // Receives a TCP message
     pub fn receive_tcp_msg(mut stream: TcpStream) -> Option<Vec<u8>> {
         let mut received_msg = [0; 2];
+
+        // Receive a msg
         let number_of_bytes = stream.read(&mut received_msg).expect("No data received");
 
+        // If it was an empty msg
         if number_of_bytes == 0 {
             return None;
         }
 
+        // Gets the msg size and create the buffer
         let mut tcp_msg_len = (received_msg[0] as u16) << 8 | received_msg[1] as u16;
         let mut vec_msg: Vec<u8> = Vec::new();
 
+        // Receive all the msg
         while tcp_msg_len > 0 {
             let mut msg = [0; 512];
             let number_of_bytes_msg = stream.read(&mut msg).expect("No data received");
@@ -1002,13 +1078,18 @@ impl Resolver {
 
     // Sends the response to the address by udp
     fn send_answer_by_udp(response: DnsMessage, src_address: String, socket: &UdpSocket) {
+        // Msg to bytes
         let bytes = response.to_bytes();
 
+        // Send the message
         if bytes.len() <= 512 {
             socket
                 .send_to(&bytes, src_address)
                 .expect("failed to send message");
-        } else {
+        }
+        // Send the message in parts
+        else {
+            // Separate the msg in two parts
             let ancount = response.get_header().get_ancount();
             let nscount = response.get_header().get_nscount();
             let arcount = response.get_header().get_arcount();
@@ -1020,6 +1101,7 @@ impl Resolver {
             let mut authority = response.get_authority();
             let mut additional = response.get_additional();
 
+            // Set the first part
             let mut first_tc_msg = DnsMessage::new();
             let mut new_header = response.get_header();
             new_header.set_tc(true);
@@ -1042,12 +1124,14 @@ impl Resolver {
 
             first_tc_msg.update_header_counters();
 
+            // Send the first part
             Resolver::send_answer_by_udp(
                 first_tc_msg,
                 src_address.clone(),
                 &socket.try_clone().unwrap(),
             );
 
+            // Sets the second part
             let mut second_tc_msg = DnsMessage::new();
             let mut new_header = response.get_header();
             second_tc_msg.set_header(new_header);
@@ -1069,20 +1153,24 @@ impl Resolver {
 
             second_tc_msg.update_header_counters();
 
+            // Sends the second part
             Resolver::send_answer_by_udp(second_tc_msg, src_address, socket);
         }
     }
 
     // Sends the response to the address by tcp
     fn send_answer_by_tcp(response: DnsMessage, src_address: String, mut stream: TcpStream) {
+        // Msg to bytes
         let bytes = response.to_bytes();
 
+        // Get the msg length
         let msg_length: u16 = bytes.len() as u16;
 
+        // Set the size of msg in bytes and concats the msg
         let tcp_bytes_length = [(msg_length >> 8) as u8, msg_length as u8];
-
         let full_msg = [&tcp_bytes_length, bytes.as_slice()].concat();
 
+        // Sends the message
         stream.write(&full_msg);
     }
 }

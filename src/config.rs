@@ -12,8 +12,9 @@ pub static SBELT_ROOT_IPS: [&str; 3] = ["198.41.0.4", "199.9.14.201", "192.33.4.
 // Queries quantity for each query, before the resolver panic in a Temporary Error
 pub static QUERIES_FOR_CLIENT_REQUEST: u16 = 10;
 
-// Uses cache or not
+// Cache
 pub static USE_CACHE: bool = true;
+pub static CACHE_MAX_SIZE: u32 = 1000;
 // --------------------------------------------------
 
 // ------------- NameServer Config -------------------

@@ -2,6 +2,8 @@ use crate::message::rdata::Rdata;
 use crate::message::resource_record::ResourceRecord;
 use crate::rr_cache::RRCache;
 
+use crate::config::CACHE_MAX_SIZE;
+
 use chrono::prelude::*;
 use std::collections::HashMap;
 
@@ -27,7 +29,7 @@ impl DnsCache {
     pub fn new() -> Self {
         let cache = DnsCache {
             cache: HashMap::<String, HashMap<String, Vec<RRCache>>>::new(),
-            max_size: 0,
+            max_size: CACHE_MAX_SIZE,
             size: 0,
         };
 
@@ -239,7 +241,8 @@ impl DnsCache {
                     }
 
                     if ip_address_bytes == rr_ip_address {
-                        rr_cache.set_response_time((response_time + rr_cache.get_response_time())/2);
+                        rr_cache
+                            .set_response_time((response_time + rr_cache.get_response_time()) / 2);
                     }
 
                     rr_cache_vec.push(rr_cache.clone());
