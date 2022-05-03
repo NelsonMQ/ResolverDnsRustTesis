@@ -957,7 +957,7 @@ impl NameServer {
                                 );
                             } else {
                                 // Set RA bit to 1
-                                let ra = true;
+                                let mut ra = true;
                                 let mut new_msg = NameServer::set_ra(dns_message.clone(), true);
 
                                 // RA bit to 0
