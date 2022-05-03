@@ -114,10 +114,12 @@ impl NameServer {
         rx_update_refresh_zone_udp: Receiver<ZoneRefresh>,
         rx_update_refresh_zone_tcp: Receiver<ZoneRefresh>,
     ) {
+        // Copies the info to run udp and tcp nameservers
         let mut name_server_copy = self.clone();
         let name_server_ip_address_copy = name_server_ip_address.clone();
         let local_resolver_ip_and_port_copy = local_resolver_ip_and_port.clone();
 
+        // Runs udp name server
         thread::spawn(move || {
             name_server_copy.run_name_server_udp(
                 name_server_ip_address_copy,
@@ -129,6 +131,7 @@ impl NameServer {
             );
         });
 
+        // Runs tcp name server
         self.run_name_server_tcp(
             name_server_ip_address,
             local_resolver_ip_and_port,
@@ -139,6 +142,7 @@ impl NameServer {
         );
     }
 
+    // Runs an udp name server
     pub fn run_name_server_udp(
         &mut self,
         mut name_server_ip_address: String,
@@ -176,7 +180,9 @@ impl NameServer {
         let mut refresh_data = self.get_refresh_zones_data();
         let mut minimum_refresh: u32 = 2147483648;
 
+        // Checks if name server is primary
         if primary_server == false {
+            // Creates ZoneRefresh structures
             let zones = self.get_zones();
 
             for (key, val) in zones.iter() {
@@ -198,6 +204,7 @@ impl NameServer {
         // Creates an UDP socket
         let socket = UdpSocket::bind(&name_server_ip_address).expect("Failed to bind host socket");
 
+        // Sets a time out to allow name server refresh zones
         if primary_server == false {
             // Setting read timeout
             let read_timeout = Duration::new(minimum_refresh.into(), 0);
@@ -207,14 +214,14 @@ impl NameServer {
             //
         }
 
+        // DEBUG //
         println!("{}", "Socket Created");
+        ///////////
 
         loop {
             // Updates zone refresh and zones
             let mut received_update_refresh_zone = rx_update_refresh_zone_udp.try_iter();
-
             let mut next_value = received_update_refresh_zone.next();
-
             let mut refresh_zones = self.get_refresh_zones_data();
             let mut zones = self.get_zones();
 
@@ -281,7 +288,7 @@ impl NameServer {
 
                     // Expire time for the zone
                     if expire < time_between_now_and_last_serial_check {
-                        // Inactive zone
+                        // Sets the zone to Inactive zone
                         if val.get_zone().get_active() == true {
                             let mut zone = val.get_zone();
                             zone.set_active(false);
@@ -299,9 +306,11 @@ impl NameServer {
                         let last_fails = val.get_last_fails();
                         let time_between_queries = now_timestamp - last_timestamp;
 
+                        // If the last query failed
                         if last_fails == true {
                             let retry = val.get_retry();
 
+                            // Try to refresh the zone again each RETRY seconds
                             if time_between_queries > retry {
                                 let zone = val.get_zone();
                                 let msg = DnsMessage::soa_rr_query_msg(zone.clone());
@@ -320,6 +329,7 @@ impl NameServer {
                         } else {
                             let refresh = val.get_refresh();
 
+                            // Refresh the zone each REFRESH seconds
                             if time_between_queries > refresh {
                                 let zone = val.get_zone();
                                 let msg = DnsMessage::soa_rr_query_msg(zone.clone());
@@ -338,21 +348,26 @@ impl NameServer {
                         }
                     }
                 }
+                // Update zone data
                 self.set_refresh_zones_data(refresh_data);
             }
 
             //
 
+            //DEBUG//
             println!("{}", "Waiting msg");
+            /////////
 
             // We receive the msg
             let mut dns_message_option =
                 Resolver::receive_udp_msg(socket.try_clone().unwrap(), messages.clone());
 
+            // Creates an empty msg and address
             let (mut dns_message, mut src_address) = (DnsMessage::new(), "".to_string());
 
             println!("{}", "Message recv");
 
+            // Check if it is all the message
             match dns_message_option {
                 Some(val) => {
                     dns_message = val.0;
@@ -442,10 +457,11 @@ impl NameServer {
 
             let socket_copy = socket.try_clone().unwrap();
 
+            // If the msg is a query
             if dns_message.get_header().get_qr() == false {
                 let op_code = dns_message.get_header().get_op_code();
 
-                // If is an inverse query
+                // If is an inverse query, we send a Not Implemented message
                 if op_code == 1 {
                     let not_implemented_msg = DnsMessage::not_implemented_msg(dns_message.clone());
 
@@ -459,21 +475,19 @@ impl NameServer {
                 }
                 //
 
+                // Necessary info to process the query
                 let zones = self.get_zones();
-
                 let cache = self.get_cache();
-
                 let tx_clone = tx.clone();
-
                 let resolver_ip_clone = local_resolver_ip_and_port.clone();
-
                 let tx_delete_udp_copy = tx_delete_udp.clone();
                 let tx_delete_tcp_copy = tx_delete_tcp.clone();
                 let tx_delete_ns_udp_copy = tx_delete_ns_udp.clone();
                 let tx_delete_ns_tcp_copy = tx_delete_ns_tcp.clone();
 
+                // Creates a new thread to process the query
                 thread::spawn(move || {
-                    // default RA bit to 1
+                    // Default RA bit to 1
                     let mut ra = true;
                     let mut new_msg = NameServer::set_ra(dns_message.clone(), true);
 
@@ -485,7 +499,9 @@ impl NameServer {
 
                     let rd = new_msg.get_header().get_rd();
 
+                    // If recursion available and recursion desired
                     if rd == true && ra == true {
+                        // We use our internal resolver to answer the query
                         NameServer::step_5_udp(
                             resolver_ip_clone,
                             new_msg,
@@ -494,6 +510,7 @@ impl NameServer {
                             src_address,
                         );
                     } else {
+                        // We answer the query with local info
                         let response_dns_msg = NameServer::step_2(
                             new_msg,
                             zones,
@@ -504,11 +521,14 @@ impl NameServer {
                             tx_delete_ns_tcp_copy,
                         );
 
+                        //DEBUG//
                         println!(
                             "Response answer len: {}",
                             response_dns_msg.get_answer().len()
                         );
+                        ////////
 
+                        // Sends the answer to the client (or resolver)
                         NameServer::send_response_by_udp(
                             response_dns_msg,
                             src_address.to_string(),
@@ -516,34 +536,51 @@ impl NameServer {
                         );
                     }
                 });
-            } else {
+            }
+            // If the msg is a response
+            else {
                 let mut queries_id = self.get_queries_id();
                 let new_id = dns_message.get_query_id();
 
+                //DEBUG//
                 println!("Pasa por respuesta");
+                /////////
 
+                // Checks query id
                 match queries_id.get(&new_id.clone()) {
+                    // If the query id matches
                     Some(val) => {
                         let val_copy = val.clone();
+
+                        //DEBUG//
                         println!("Encuentra la id en las queries id");
+                        /////////
+
+                        // Sets headers
                         let mut header = dns_message.get_header();
                         header.set_id(val_copy[0].clone().0);
                         dns_message.set_header(header);
                         queries_id.remove(&new_id);
 
+                        // Sends response
                         NameServer::send_response_by_udp(
                             dns_message,
                             val_copy[0].clone().1,
                             &socket_copy,
                         );
                     }
+                    // Query id does not match
                     None => {
+                        //DEBUG//
                         println!("No encuentra la id en las queries id");
+                        /////////
+
                         // If the msg is a refresh soa rr query
                         let mut queries_id_for_soa_rr = self.get_queries_id_for_soa_rr();
                         let host_name_result = queries_id_for_soa_rr.get(&new_id);
 
                         match host_name_result {
+                            // If the msg is for a refresh zone query
                             Some(val) => {
                                 let rcode = dns_message.get_header().get_rcode();
                                 let qtype = dns_message.get_question().get_qtype();
@@ -710,7 +747,9 @@ impl NameServer {
         let mut refresh_data = self.get_refresh_zones_data();
         let mut minimum_refresh: u32 = 2147483648;
 
+        // If the server is not primary
         if primary_server == false {
+            // Creates RefreshZone structures
             let zones = self.get_zones();
 
             for (key, val) in zones.iter() {
@@ -736,17 +775,21 @@ impl NameServer {
         if primary_server == false {
             listener.set_nonblocking(true);
         }
-
         //
 
+        //DEBUG//
         println!("{}", "TcpListener Created");
+        /////////
 
         loop {
             println!("{}", "Waiting msg");
 
+            // Accepts the connection
             match listener.accept() {
                 Ok((mut stream, src_address)) => {
+                    //DEBUG//
                     println!("New connection: {}", stream.peer_addr().unwrap());
+                    /////////
 
                     // We receive the msg
                     let mut received_msg =
@@ -848,9 +891,11 @@ impl NameServer {
                     // Msg parsed
                     let dns_message_parse_result = DnsMessage::from_bytes(&received_msg);
 
+                    // Checks parsed msg
                     match dns_message_parse_result {
                         Ok(_) => {}
                         Err(e) => {
+                            // Sends a format error if the msg is not correctly parsed
                             let dns_msg_format_error = DnsMessage::format_error_msg();
 
                             NameServer::send_response_by_tcp(
@@ -867,14 +912,17 @@ impl NameServer {
 
                     println!("{}", "Message parsed");
 
+                    // If the msg is a query
                     if dns_message.get_header().get_qr() == false {
                         let op_code = dns_message.get_header().get_op_code();
 
                         // If is an inverse query
                         if op_code == 1 {
+                            // Creates a not implemented msg
                             let not_implemented_msg =
                                 DnsMessage::not_implemented_msg(dns_message.clone());
 
+                            // Sends the Not Implemented msg
                             NameServer::send_response_by_tcp(
                                 not_implemented_msg,
                                 src_address.to_string(),
@@ -885,19 +933,21 @@ impl NameServer {
                         }
                         //
 
+                        // Gets the necessary info to process the query
                         let zones = self.get_zones();
                         let cache = self.get_cache();
                         let resolver_ip_clone = local_resolver_ip_and_port.clone();
-
                         let tx_delete_udp_copy = tx_delete_udp.clone();
                         let tx_delete_tcp_copy = tx_delete_tcp.clone();
                         let tx_delete_ns_udp_copy = tx_delete_ns_udp.clone();
                         let tx_delete_ns_tcp_copy = tx_delete_ns_tcp.clone();
 
+                        // Creates a new thread to process the msg
                         thread::spawn(move || {
                             let query_id = dns_message.get_query_id();
                             let qtype = dns_message.get_question().get_qtype();
 
+                            // If is a refresh zone query
                             if qtype == 253 {
                                 NameServer::send_axfr_response(
                                     dns_message.clone(),
@@ -907,13 +957,21 @@ impl NameServer {
                                 );
                             } else {
                                 // Set RA bit to 1
-                                let new_msg = NameServer::set_ra(dns_message, true);
+                                let ra = true;
+                                let mut new_msg = NameServer::set_ra(dns_message.clone(), true);
 
+                                // RA bit to 0
+                                if RECURSIVE_AVAILABLE == false {
+                                    new_msg = NameServer::set_ra(dns_message, false);
+                                    ra = false;
+                                }
+
+                                // Gets recursion desired bit
                                 let rd = new_msg.get_header().get_rd();
 
-                                if rd == true {
-                                    println!("RD true");
-
+                                // If recursion
+                                if (rd == true && ra == true) {
+                                    // Gets the answer
                                     let mut response_dns_msg = NameServer::step_5_tcp(
                                         resolver_ip_clone,
                                         new_msg,
@@ -921,16 +979,17 @@ impl NameServer {
                                         zones.clone(),
                                     );
 
+                                    // Set the query id
                                     response_dns_msg.set_query_id(query_id.clone());
 
-                                    println!("{:#?}", response_dns_msg.to_bytes());
-
+                                    // Sends the response
                                     NameServer::send_response_by_tcp(
                                         response_dns_msg,
                                         src_address.to_string(),
                                         stream.try_clone().unwrap(),
                                     );
                                 } else {
+                                    // Answers with local info
                                     let mut response_dns_msg = NameServer::step_2(
                                         new_msg,
                                         zones,
@@ -941,8 +1000,10 @@ impl NameServer {
                                         tx_delete_ns_tcp_copy,
                                     );
 
+                                    // Sets the query id
                                     response_dns_msg.set_query_id(query_id);
 
+                                    // Sends the answer
                                     NameServer::send_response_by_tcp(
                                         response_dns_msg,
                                         src_address.to_string(),
@@ -953,6 +1014,7 @@ impl NameServer {
                         });
                     }
                 }
+                // Timeout, check if there are refresh zone queries
                 Err(e) => {
                     // Checking refresh queries
                     let mut queries_id_for_soa_rr = self.get_queries_id_for_soa_rr();
@@ -1375,14 +1437,18 @@ impl NameServer {
 
         let zones_by_class = zones_by_class_option.unwrap();
 
+        // If there are a zone
         let (mut zone, mut available) = match zones_by_class.get(&qname) {
             Some(val) => (val.clone(), true),
             None => (NSZone::new(), false),
         };
 
+        // If we found a zone
         if zone.get_name() != "" && zone.get_active() == true {
             return (zone, available);
-        } else {
+        }
+        // We found the next ancestor zone
+        else {
             let dot_position = qname.find(".").unwrap_or(0);
             if dot_position > 0 {
                 qname.replace_range(..dot_position + 1, "");
@@ -1427,6 +1493,7 @@ impl NameServer {
         // Delete last dot
         qname_without_zone_label.pop().unwrap();
 
+        // Splits domain name
         let mut labels: Vec<&str> = qname_without_zone_label.split(".").collect();
 
         labels.reverse();
@@ -1434,11 +1501,15 @@ impl NameServer {
         for label in labels {
             let exist_child = zone.exist_child(label.to_string());
 
+            //DEBUG//
             println!("Existe child: {}", exist_child.clone());
+            /////////
 
+            // If a child exists
             if exist_child == true {
                 zone = zone.get_child(label.to_string()).0.clone();
 
+                // Referal zone
                 if zone.get_subzone() == true {
                     return NameServer::step_3b(
                         zone,
@@ -1454,10 +1525,12 @@ impl NameServer {
                     continue;
                 }
             } else {
+                // Impossible match
                 return NameServer::step_3c(zone, msg, cache, zones);
             }
         }
 
+        // We found the node
         return NameServer::step_3a(
             zone,
             msg,
@@ -1545,7 +1618,9 @@ impl NameServer {
                 qclass.clone(),
             );
 
+            //DEBUG//
             println!("Ancestor zone for {}: {}", qname.clone(), available.clone());
+            /////////
 
             if available == true {
                 // Step 3 RFC 1034
@@ -1753,6 +1828,7 @@ impl NameServer {
         let exist = zone.exist_child("*".to_string());
 
         if exist == true {
+            // Gets the * records
             let (new_zone, _available) = zone.get_child("*".to_string());
             let rrs = new_zone.get_value();
             let qtype = msg.get_question().get_qtype();
@@ -1774,6 +1850,7 @@ impl NameServer {
 
             return NameServer::step_6(msg, cache, zones);
         } else {
+            // Domain do not exist in the zone
             let mut header = msg.get_header();
             header.set_rcode(3);
 
@@ -1850,6 +1927,7 @@ impl NameServer {
 
         //
 
+        // Sets the answer
         if answer.len() > 0 {
             msg.set_answer(answer);
             let mut header = msg.get_header();
@@ -1857,11 +1935,13 @@ impl NameServer {
             msg.set_header(header);
         }
 
+        // Adds additional records
         if msg.get_authority().len() > 0 {
             return NameServer::step_6(msg, cache, zones);
         } else {
             let mut authority = Vec::<ResourceRecord>::new();
 
+            // Looks for authoritive data in cache
             while domain_name != "".to_string() {
                 let mut rrs = cache.get(domain_name.clone(), "NS".to_string());
 
@@ -1903,6 +1983,7 @@ impl NameServer {
             let answer_type = answer.get_type_code();
 
             match answer_type {
+                // Adds additional for MX data
                 15 => {
                     let exchange = match answer.get_rdata() {
                         Rdata::SomeMxRdata(val) => val.get_exchange().get_name(),
@@ -1927,6 +2008,7 @@ impl NameServer {
                         }
                     }
                 }
+                // Adds additional for NS data
                 2 => {
                     let name_ns = match answer.get_rdata() {
                         Rdata::SomeNsRdata(val) => val.get_nsdname().get_name(),
@@ -1977,9 +2059,9 @@ impl NameServer {
         let mut rng = thread_rng();
         let new_id: u16 = rng.gen();
 
+        // Sets the header
         let mut header = msg.get_header();
         header.set_id(new_id);
-
         msg.set_header(header);
 
         tx.send((vec![(old_id, src_address)], new_id));
@@ -1991,8 +2073,11 @@ impl NameServer {
     // Sends the response to the address by udp
     fn send_response_by_udp(mut response: DnsMessage, src_address: String, socket: &UdpSocket) {
         response.update_header_counters();
+
+        // Msg to bytes
         let bytes = response.to_bytes();
 
+        // Msg size < 512
         if bytes.len() <= 512 {
             println!("Enviando mensaje de respuesta: {}", src_address.clone());
 
@@ -2000,6 +2085,7 @@ impl NameServer {
                 .send_to(&bytes, src_address)
                 .expect("failed to send message");
         } else {
+            // Divides msg in two parts
             let ancount = response.get_header().get_ancount();
             let nscount = response.get_header().get_nscount();
             let arcount = response.get_header().get_arcount();
@@ -2011,6 +2097,7 @@ impl NameServer {
             let mut authority = response.get_authority();
             let mut additional = response.get_additional();
 
+            // Sets the first part
             let mut first_tc_msg = DnsMessage::new();
             let mut new_header = response.get_header();
             new_header.set_tc(true);
@@ -2033,12 +2120,14 @@ impl NameServer {
 
             first_tc_msg.update_header_counters();
 
+            // Sends the first part
             NameServer::send_response_by_udp(
                 first_tc_msg,
                 src_address.clone(),
                 &socket.try_clone().unwrap(),
             );
 
+            // Sets the second part
             let mut second_tc_msg = DnsMessage::new();
             let mut new_header = response.get_header();
             second_tc_msg.set_header(new_header);
@@ -2060,6 +2149,7 @@ impl NameServer {
 
             second_tc_msg.update_header_counters();
 
+            // Sends the second part
             NameServer::send_response_by_udp(second_tc_msg, src_address, socket);
         }
     }
@@ -2093,10 +2183,13 @@ impl NameServer {
         let mut stream = TcpStream::connect(resolver_ip_and_port).unwrap();
         stream.write(&full_msg);
 
+        // Receives the response
         let mut received_msg = Resolver::receive_tcp_msg(stream).unwrap();
 
+        // Parse the response
         let dns_response_result = DnsMessage::from_bytes(&received_msg);
 
+        // Checks the parse
         match dns_response_result {
             Ok(_) => {}
             Err(e) => {
@@ -2106,17 +2199,23 @@ impl NameServer {
 
         let dns_response = dns_response_result.unwrap();
 
+        // Adds additionals
         return NameServer::step_6(dns_response, cache, zones);
     }
 
     fn send_response_by_tcp(mut msg: DnsMessage, address: String, mut stream: TcpStream) {
+        // Updates headers counters
         msg.update_header_counters();
 
+        // Msg to bytes
         let bytes = msg.to_bytes();
+
+        // Adds the length bytes to the msg
         let msg_length: u16 = bytes.len() as u16;
         let tcp_bytes_length = [(msg_length >> 8) as u8, msg_length as u8];
         let full_msg = [&tcp_bytes_length, bytes.as_slice()].concat();
 
+        // Sends the msg
         stream.write(&full_msg);
     }
 
@@ -2200,6 +2299,7 @@ impl NameServer {
         return a_rrs;
     }
 
+    // Sets RA bit in header
     fn set_ra(mut msg: DnsMessage, ra: bool) -> DnsMessage {
         let mut header = msg.get_header();
         header.set_ra(ra);
@@ -2209,6 +2309,7 @@ impl NameServer {
         msg
     }
 
+    // Adds a zone from a master file
     pub fn add_zone_from_master_file(&mut self, file_name: String, ip_address_for_refresh: String) {
         let new_zone = NSZone::from_file(file_name, ip_address_for_refresh);
         let mut zones = self.get_zones();
@@ -2224,6 +2325,7 @@ impl NameServer {
         self.set_zones(zones);
     }
 
+    // Removes records from the cache
     pub fn remove_from_cache(
         domain_name: String,
         resource_record: ResourceRecord,
