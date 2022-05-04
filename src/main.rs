@@ -45,9 +45,6 @@ pub fn main() {
         let (update_cache_sender_ns_udp, rx_update_cache_ns_udp) = mpsc::channel();
         let (update_cache_sender_ns_tcp, rx_update_cache_ns_tcp) = mpsc::channel();
 
-        let (update_zone_udp, rx_update_zone_udp) = mpsc::channel();
-        let (update_zone_tcp, rx_update_zone_tcp) = mpsc::channel();
-
         if trim_input_line == "R" {
             let mut resolver = Resolver::new(
                 add_sender_udp.clone(),
@@ -81,13 +78,8 @@ pub fn main() {
                 delete_recv_tcp,
                 rx_update_cache_udp,
                 rx_update_cache_tcp,
-                rx_update_zone_udp,
-                rx_update_zone_tcp,
             );
         } else if trim_input_line == "N" {
-            let (update_refresh_zone_udp, rx_update_refresh_zone_udp) = mpsc::channel();
-            let (update_refresh_zone_tcp, rx_update_refresh_zone_tcp) = mpsc::channel();
-
             let mut name_server = NameServer::new(
                 false,
                 delete_sender_udp.clone(),
@@ -96,10 +88,6 @@ pub fn main() {
                 delete_sender_ns_udp.clone(),
                 add_sender_ns_tcp.clone(),
                 delete_sender_ns_tcp.clone(),
-                update_refresh_zone_udp.clone(),
-                update_refresh_zone_tcp.clone(),
-                update_zone_udp.clone(),
-                update_zone_tcp.clone(),
             );
 
             for master_file in MASTER_FILES {
@@ -115,8 +103,6 @@ pub fn main() {
                 delete_recv_ns_tcp,
                 rx_update_cache_ns_udp,
                 rx_update_cache_ns_tcp,
-                rx_update_refresh_zone_udp,
-                rx_update_refresh_zone_tcp,
             );
         }
     }

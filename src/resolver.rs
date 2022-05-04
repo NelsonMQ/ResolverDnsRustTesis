@@ -110,29 +110,17 @@ impl Resolver {
         rx_delete_tcp: Receiver<(String, ResourceRecord)>,
         rx_update_cache_udp: Receiver<(String, String, u32)>,
         rx_update_cache_tcp: Receiver<(String, String, u32)>,
-        rx_update_zone_udp: Receiver<NSZone>,
-        rx_update_zone_tcp: Receiver<NSZone>,
     ) {
         // Copy the resolver instance to use it in udp resolver
         let mut resolver_copy = self.clone();
 
         // Runs an udp resolver
         thread::spawn(move || {
-            resolver_copy.run_resolver_udp(
-                rx_add_udp,
-                rx_delete_udp,
-                rx_update_cache_udp,
-                rx_update_zone_udp,
-            );
+            resolver_copy.run_resolver_udp(rx_add_udp, rx_delete_udp, rx_update_cache_udp);
         });
 
         // Runs a tcp resolver
-        self.run_resolver_tcp(
-            rx_add_tcp,
-            rx_delete_tcp,
-            rx_update_cache_tcp,
-            rx_update_zone_tcp,
-        );
+        self.run_resolver_tcp(rx_add_tcp, rx_delete_tcp, rx_update_cache_tcp);
     }
 
     // Runs a udp resolver
@@ -141,7 +129,6 @@ impl Resolver {
         rx_add_udp: Receiver<(String, ResourceRecord)>,
         rx_delete_udp: Receiver<(String, ResourceRecord)>,
         rx_update_cache_udp: Receiver<(String, String, u32)>,
-        rx_update_zone_udp: Receiver<NSZone>,
     ) {
         // Hashmap to save the queries in process
         let mut queries_hash_by_id = HashMap::<u16, ResolverQuery>::new();
@@ -210,29 +197,6 @@ impl Resolver {
                     &socket.try_clone().unwrap(),
                 );
             }
-
-            // Updates zones
-            let mut received_update_refresh_zone = rx_update_zone_udp.try_iter();
-
-            let mut next_value = received_update_refresh_zone.next();
-
-            let mut zones = self.get_ns_data();
-
-            while next_value.is_none() == false {
-                let zone = next_value.unwrap();
-                let zone_name = zone.get_name();
-                let zone_class = zone.get_class();
-                let mut new_zone_hash = HashMap::new();
-
-                new_zone_hash.insert(zone_name, zone);
-
-                zones.insert(zone_class, new_zone_hash);
-
-                next_value = received_update_refresh_zone.next();
-            }
-
-            self.set_ns_data(zones);
-            //
 
             // Updates queries
 
@@ -706,7 +670,6 @@ impl Resolver {
         rx_add_tcp: Receiver<(String, ResourceRecord)>,
         rx_delete_tcp: Receiver<(String, ResourceRecord)>,
         rx_update_cache_tcp: Receiver<(String, String, u32)>,
-        rx_update_zone_tcp: Receiver<NSZone>,
     ) {
         // Vector to save the queries in process
         let mut queries_hash_by_id = HashMap::<u16, ResolverQuery>::new();
@@ -745,29 +708,6 @@ impl Resolver {
             // Accept connection
             match listener.accept() {
                 Ok((mut stream, src_address)) => {
-                    // Updates zones
-                    let mut received_update_refresh_zone = rx_update_zone_tcp.try_iter();
-
-                    let mut next_value = received_update_refresh_zone.next();
-
-                    let mut zones = self.get_ns_data();
-
-                    while next_value.is_none() == false {
-                        let zone = next_value.unwrap();
-                        let zone_name = zone.get_name();
-                        let zone_class = zone.get_class();
-                        let mut new_zone_hash = HashMap::new();
-
-                        new_zone_hash.insert(zone_name, zone);
-
-                        zones.insert(zone_class, new_zone_hash);
-
-                        next_value = received_update_refresh_zone.next();
-                    }
-
-                    self.set_ns_data(zones);
-                    //
-
                     // Delete from cache
 
                     let mut received_delete = rx_delete_tcp.try_iter();
