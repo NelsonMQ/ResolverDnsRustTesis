@@ -16,7 +16,7 @@ use std::sync::mpsc;
 use std::thread;
 
 use crate::config::MASTER_FILES;
-use crate::config::NAME_SERVER_IP;
+//use crate::config::NAME_SERVER_IP;
 use crate::config::RESOLVER_IP_PORT;
 use crate::config::SBELT_ROOT_IPS;
 
@@ -80,6 +80,12 @@ pub fn main() {
                 rx_update_cache_tcp,
             );
         } else if trim_input_line == "N" {
+            let mut input_line = String::new();
+            println!("Enter Ip and port: ");
+            std::io::stdin().read_line(&mut input_line).unwrap();
+
+            let trim_input_line = input_line.trim();
+
             let mut name_server = NameServer::new(
                 false,
                 delete_sender_udp.clone(),
@@ -90,12 +96,16 @@ pub fn main() {
                 delete_sender_ns_tcp.clone(),
             );
 
-            for master_file in MASTER_FILES {
-                name_server.add_zone_from_master_file(master_file.to_string(), "".to_string());
-            }
+            let mut input_line = String::new();
+            println!("Insert MasterFile name: ");
+            std::io::stdin().read_line(&mut input_line).unwrap();
+
+            let master_file = input_line.trim();
+
+            name_server.add_zone_from_master_file(master_file.to_string(), "".to_string());
 
             name_server.run_name_server(
-                NAME_SERVER_IP.to_string(),
+                trim_input_line.to_string(),
                 RESOLVER_IP_PORT.to_string(),
                 add_recv_ns_udp,
                 delete_recv_ns_udp,

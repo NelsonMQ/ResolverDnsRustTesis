@@ -39,6 +39,12 @@ impl NSZone {
         let origin = master_file_parsed.get_origin();
         let mut rrs = master_file_parsed.get_rrs();
 
+        for (name, rrs_vec) in &rrs {
+            for rr in rrs_vec {
+                println!("{} {}", name, rr.get_string_type());
+            }
+        }
+
         let origin_rrs = rrs.remove(&origin).unwrap();
 
         let mut ns_zone = NSZone::new();

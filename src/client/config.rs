@@ -1,7 +1,7 @@
 /* Configuration file for dns client */
 
-pub static RESOLVER_IP_PORT: &'static str = "192.168.1.87:58396";
-pub static CLIENT_IP_PORT: &'static str = "192.168.1.87:58397";
+pub static RESOLVER_IP_PORT: &'static str = "192.168.1.90:58396";
+pub static CLIENT_IP_PORT: &'static str = "192.168.1.90:58397";
 
 /* Dns query configuration */
 

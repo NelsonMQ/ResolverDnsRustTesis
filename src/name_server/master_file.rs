@@ -125,11 +125,11 @@ impl MasterFile {
         // Replace @ for the origin domain
         let contains_non_especial_at_sign = line.contains("\\@");
 
-        if contains_non_especial_at_sign == false {
-            let new_line = line.replace("@", &self.get_origin());
-        }
+        let mut new_line = line.replace("\\@", "@");
 
-        let new_line = line.replace("\\@", "@");
+        if contains_non_especial_at_sign == false {
+            new_line = line.replace("@", &self.get_origin());
+        }
 
         // Backslash replace
         let line = new_line.replace("\\", "");

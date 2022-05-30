@@ -134,9 +134,6 @@ impl NameServer {
         // Hashmap to save incomplete messages
         let mut messages = HashMap::<u16, DnsMessage>::new();
 
-        // Add port 53 to ip address
-        name_server_ip_address.push_str(":53");
-
         // Chanel to share the ids queries
         let (tx, rx) = mpsc::channel();
 
@@ -388,8 +385,6 @@ impl NameServer {
         rx_delete_ns_tcp: Receiver<(String, ResourceRecord)>,
         rx_update_cache_ns_tcp: Receiver<(String, String, u32)>,
     ) {
-        name_server_ip_address.push_str(":53");
-
         // Channels to send data between threads, resolvers and name server
         let tx_delete_udp = self.get_delete_channel_udp();
         let tx_delete_tcp = self.get_delete_channel_tcp();
