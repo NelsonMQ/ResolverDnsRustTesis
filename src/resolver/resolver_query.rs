@@ -1509,7 +1509,10 @@ impl ResolverQuery {
         //
 
         // Adds port to the ip adress
-        best_server_ip.push_str(":53");
+        if (best_server_ip.contains(":") == false) {
+            // Sets 53 port
+            best_server_ip.push_str(":53");
+        }
 
         // Update the index to choose
         self.set_index_to_choose((index_to_choose + 1) % slist.len() as u16);
