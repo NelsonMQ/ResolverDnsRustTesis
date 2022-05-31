@@ -1,10 +1,14 @@
 use crate::dns_cache::DnsCache;
+use crate::message::header::Header;
+use crate::message::question::Question;
 use crate::message::rdata::Rdata;
 use crate::message::resource_record::ResourceRecord;
 use crate::message::DnsMessage;
 use crate::name_server::zone::NSZone;
 use crate::resolver::resolver_query::ResolverQuery;
 use crate::resolver::slist::Slist;
+
+use crate::config::RESOLVER_IP_PORT;
 
 use chrono::{DateTime, Utc};
 use core::num;
@@ -926,8 +930,47 @@ impl Resolver {
             return None;
         }
 
-        // Parse the msg
-        let dns_msg_parsed_result = DnsMessage::from_bytes(&msg);
+        // Get TC bit
+        let tc = (msg[2] as u8 & 0b00000010) >> 1;
+
+        /// DEBUG/////
+        println!("Truncado: {}", tc);
+
+        let mut dns_msg_parsed_result;
+
+        if tc == 1 {
+            // Parse the question
+            let msg_question = Question::from_bytes(&msg[12..], &msg).unwrap().0;
+
+            // Parse header
+            let msg_header = Header::from_bytes(&msg[0..12]);
+
+            let query_msg = DnsMessage::new_query_message(
+                msg_question.get_qname().get_name(),
+                msg_question.get_qtype(),
+                msg_question.get_qclass(),
+                msg_header.get_op_code(),
+                msg_header.get_rd(),
+                msg_header.get_id(),
+            );
+
+            let mut stream = TcpStream::connect(RESOLVER_IP_PORT.to_string())
+                .expect("Couldn't connect to the server...");
+
+            Resolver::send_answer_by_tcp(
+                query_msg,
+                RESOLVER_IP_PORT.to_string(),
+                stream.try_clone().unwrap(),
+            );
+
+            let bytes_response = Resolver::receive_tcp_msg(stream).unwrap();
+
+            // Parse the msg
+            dns_msg_parsed_result = DnsMessage::from_bytes(&bytes_response);
+        } else {
+            // Parse the msg
+            dns_msg_parsed_result = DnsMessage::from_bytes(&msg);
+        }
 
         // Returns a format error msg if the parse is not right
         match dns_msg_parsed_result {
@@ -939,13 +982,6 @@ impl Resolver {
 
         // Gets the parsed msg and the query id
         let dns_msg_parsed = dns_msg_parsed_result.unwrap();
-        let query_id = dns_msg_parsed.get_query_id();
-        //let trunc = dns_msg_parsed.get_header().get_tc();
-
-        let trunc = false;
-
-        /// DEBUG/////
-        println!("Truncado: {}", trunc);
 
         println!(
             "AA: {} - NS: {} - AD: {}",
@@ -955,38 +991,7 @@ impl Resolver {
         );
         /////////////////////////
 
-        // Checks if the query id exists in resolver list
-        match messages.get(&query_id) {
-            Some(mut val) => {
-                let mut msg = val.clone();
-                msg.add_answers(dns_msg_parsed.get_answer());
-                msg.add_authorities(dns_msg_parsed.get_authority());
-                msg.add_additionals(dns_msg_parsed.get_additional());
-
-                if trunc == true {
-                    messages.insert(query_id, msg.clone());
-
-                    return None;
-                } else {
-                    msg.update_header_counters();
-                    let mut header = msg.get_header();
-                    header.set_tc(false);
-
-                    msg.set_header(header);
-                    messages.remove(&query_id);
-
-                    return Some((msg.clone(), address));
-                }
-            }
-            None => {
-                if trunc == true {
-                    messages.insert(query_id, dns_msg_parsed);
-                    return None;
-                } else {
-                    return Some((dns_msg_parsed, address));
-                }
-            }
-        }
+        return Some((dns_msg_parsed, address));
     }
 
     // Receives a TCP message
@@ -1018,83 +1023,39 @@ impl Resolver {
 
     // Sends the response to the address by udp
     fn send_answer_by_udp(response: DnsMessage, src_address: String, socket: &UdpSocket) {
+        println!("\n \n *********************** Sending response to client ********************");
+        println!("msg type: {} \n \n", response.get_question().get_qtype());
+
         // Msg to bytes
         let bytes = response.to_bytes();
 
+        println!("Largo mensaje: {}", bytes.len());
+
         // Send the message
         if bytes.len() <= 512 {
+            println!("Contenido mensaje: {:#?}", bytes);
+
             socket
                 .send_to(&bytes, src_address)
                 .expect("failed to send message");
         }
         // Send the message in parts
         else {
-            // Separate the msg in two parts
-            let ancount = response.get_header().get_ancount();
-            let nscount = response.get_header().get_nscount();
-            let arcount = response.get_header().get_arcount();
-            let total_rrs = ancount + nscount + arcount;
-            let half_rrs: f32 = (total_rrs / 2).into();
-            let ceil_half_rrs = half_rrs.ceil() as u32;
+            // Sets TC bit
+            let mut header = response.get_header();
+            header.set_tc(true);
 
-            let mut answer = response.get_answer();
-            let mut authority = response.get_authority();
-            let mut additional = response.get_additional();
+            let mut response_copy = response.clone();
+            response_copy.set_header(header);
 
-            // Set the first part
-            let mut first_tc_msg = DnsMessage::new();
-            let mut new_header = response.get_header();
-            new_header.set_tc(true);
-            first_tc_msg.set_header(new_header);
+            // Msg to bytes
+            let response_bytes = response_copy.to_bytes();
 
-            for i in 1..ceil_half_rrs + 1 {
-                if answer.len() > 0 {
-                    let rr = answer.remove(0);
-                    first_tc_msg.add_answers(vec![rr]);
-                } else if authority.len() > 0 {
-                    let rr = authority.remove(0);
-                    first_tc_msg.add_authorities(vec![rr]);
-                } else if additional.len() > 0 {
-                    let rr = additional.remove(0);
-                    first_tc_msg.add_additionals(vec![rr]);
-                } else {
-                    continue;
-                }
-            }
+            println!("Contenido mensaje: {:#?}", response_bytes);
 
-            first_tc_msg.update_header_counters();
-
-            // Send the first part
-            Resolver::send_answer_by_udp(
-                first_tc_msg,
-                src_address.clone(),
-                &socket.try_clone().unwrap(),
-            );
-
-            // Sets the second part
-            let mut second_tc_msg = DnsMessage::new();
-            let mut new_header = response.get_header();
-            second_tc_msg.set_header(new_header);
-
-            for i in 1..ceil_half_rrs + 1 {
-                if answer.len() > 0 {
-                    let rr = answer.remove(0);
-                    second_tc_msg.add_answers(vec![rr]);
-                } else if authority.len() > 0 {
-                    let rr = authority.remove(0);
-                    second_tc_msg.add_authorities(vec![rr]);
-                } else if additional.len() > 0 {
-                    let rr = additional.remove(0);
-                    second_tc_msg.add_additionals(vec![rr]);
-                } else {
-                    continue;
-                }
-            }
-
-            second_tc_msg.update_header_counters();
-
-            // Sends the second part
-            Resolver::send_answer_by_udp(second_tc_msg, src_address, socket);
+            socket
+                .send_to(&response_bytes[0..512], src_address)
+                .expect("failed to send message");
         }
     }
 
