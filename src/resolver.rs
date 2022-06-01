@@ -21,6 +21,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
 use std::thread;
+use std::time::Duration;
 use std::vec::Vec;
 
 pub mod resolver_query;
@@ -167,41 +168,11 @@ impl Resolver {
 
         // Creates an UDP socket
         let socket = UdpSocket::bind(&host_address_and_port).expect("Failed to bind host socket");
+        socket.set_read_timeout(Some(Duration::from_millis(1000)));
         println!("{}", "Socket Created");
 
         // Receives messages
         loop {
-            println!("{}", "Waiting msg");
-
-            // We receive the msg
-            let mut dns_message_option =
-                Resolver::receive_udp_msg(socket.try_clone().unwrap(), messages.clone());
-
-            // Creates an empty msg and address
-            let (mut dns_message, mut src_address) = (DnsMessage::new(), "".to_string());
-
-            println!("{}", "Message recv");
-
-            // Check if it is all the message
-            match dns_message_option {
-                Some(val) => {
-                    dns_message = val.0;
-                    src_address = val.1;
-                }
-                None => {
-                    continue;
-                }
-            }
-
-            // Format Error
-            if dns_message.get_header().get_rcode() == 1 {
-                Resolver::send_answer_by_udp(
-                    dns_message.clone(),
-                    src_address.clone(),
-                    &socket.try_clone().unwrap(),
-                );
-            }
-
             // Updates queries
 
             let mut queries_to_update = rx_update_query.try_iter();
@@ -322,6 +293,37 @@ impl Resolver {
             }
 
             ////////////////////////////////////////////////////////////////////
+
+            println!("{}", "Waiting msg");
+
+            // We receive the msg
+            let mut dns_message_option =
+                Resolver::receive_udp_msg(socket.try_clone().unwrap(), messages.clone());
+
+            // Creates an empty msg and address
+            let (mut dns_message, mut src_address) = (DnsMessage::new(), "".to_string());
+
+            println!("{}", "Message recv");
+
+            // Check if it is all the message
+            match dns_message_option {
+                Some(val) => {
+                    dns_message = val.0;
+                    src_address = val.1;
+                }
+                None => {
+                    continue;
+                }
+            }
+
+            // Format Error
+            if dns_message.get_header().get_rcode() == 1 {
+                Resolver::send_answer_by_udp(
+                    dns_message.clone(),
+                    src_address.clone(),
+                    &socket.try_clone().unwrap(),
+                );
+            }
 
             println!("{}", "Message parsed");
 

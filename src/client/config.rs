@@ -5,8 +5,8 @@ pub static CLIENT_IP_PORT: &'static str = "192.168.1.90:58397";
 
 /* Dns query configuration */
 
-pub static HOST_NAME: &'static str = "twitter.com";
+pub static HOST_NAME: &'static str = "google.com";
 pub static QTYPE: u16 = 1;
 pub static QCLASS: u16 = 1;
-pub static TRANSPORT: &'static str = "TCP";
-pub static TIMEOUT: u64 = 5;
+pub static TRANSPORT: &'static str = "UDP";
+pub static TIMEOUT: u64 = 10;
