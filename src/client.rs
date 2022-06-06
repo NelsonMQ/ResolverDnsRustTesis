@@ -19,7 +19,7 @@ use std::net::TcpStream;
 use std::net::UdpSocket;
 use std::time::{Duration, Instant};
 
-pub fn run_client() {
+pub fn run_client(host_name: String, qtype: u16, qclass: u16) {
     //Start timestamp
     let now = Instant::now();
 
@@ -30,8 +30,7 @@ pub fn run_client() {
     let query_id: u16 = rng.gen();
 
     // Create query msg
-    let query_msg =
-        DnsMessage::new_query_message(HOST_NAME.to_string(), QTYPE, QCLASS, 0, false, query_id);
+    let query_msg = DnsMessage::new_query_message(host_name, qtype, qclass, 0, false, query_id);
 
     // Create response buffer
     let mut dns_message = DnsMessage::new();

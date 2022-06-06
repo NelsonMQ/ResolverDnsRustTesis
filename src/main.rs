@@ -29,7 +29,26 @@ pub fn main() {
     let trim_input_line = input_line.trim();
 
     if trim_input_line == "C" {
-        client::run_client();
+        // Users input
+        let mut input_line = String::new();
+        println!("Enter domain: ");
+        std::io::stdin().read_line(&mut input_line).unwrap();
+
+        let host_name = input_line.trim();
+
+        let mut input_line = String::new();
+        println!("Enter qtype (u16): ");
+        std::io::stdin().read_line(&mut input_line).unwrap();
+
+        let qtype = input_line.trim().parse::<u16>().unwrap();
+
+        let mut input_line = String::new();
+        println!("Enter qclass (u16): ");
+        std::io::stdin().read_line(&mut input_line).unwrap();
+
+        let qclass = input_line.trim().parse::<u16>().unwrap();
+
+        client::run_client(host_name.to_string(), qtype, qclass);
     } else {
         // Channels
         let (add_sender_udp, add_recv_udp) = mpsc::channel();
