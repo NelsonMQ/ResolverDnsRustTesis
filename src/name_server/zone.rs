@@ -36,7 +36,7 @@ impl NSZone {
 
     pub fn from_file(file_name: String, ip_address_for_refresh_zone: String) -> Self {
         let master_file_parsed = MasterFile::from_file(file_name);
-        let origin = master_file_parsed.get_origin();
+        let mut origin = master_file_parsed.get_origin();
         let mut rrs = master_file_parsed.get_rrs();
 
         for (name, rrs_vec) in &rrs {
@@ -57,6 +57,8 @@ impl NSZone {
             println!("{} - {}", key.clone(), value.len());
             ns_zone.add_node(key.clone(), value.clone());
         }
+
+        ns_zone.print_zone();
 
         ns_zone
     }
@@ -246,6 +248,11 @@ impl NSZone {
 
         for rr in rrs {
             if rr.get_type_code() == rr_type {
+                println!(
+                    "----------------------rr name: {}",
+                    rr.get_name().get_name()
+                );
+
                 rr_by_type.push(rr);
             }
         }

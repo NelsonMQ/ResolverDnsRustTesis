@@ -37,7 +37,7 @@ impl DnsCache {
     }
 
     /// Adds an element to cache
-    pub fn add(&mut self, domain_name: String, resource_record: ResourceRecord) {
+    pub fn add(&mut self, domain_name: String, resource_record: ResourceRecord, data_ranking: u8) {
         let mut cache = self.get_cache();
         let rr_type = match resource_record.get_type_code() {
             1 => "A".to_string(),
@@ -66,7 +66,7 @@ impl DnsCache {
             self.remove_oldest_used();
         }
 
-        let rr_cache = RRCache::new(resource_record);
+        let rr_cache = RRCache::new(resource_record, data_ranking);
 
         if let Some(x) = cache.get_mut(&rr_type) {
             let mut type_hash = x.clone();

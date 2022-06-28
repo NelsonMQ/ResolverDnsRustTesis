@@ -10,6 +10,8 @@ pub struct RRCache {
     response_time: u32,
     // Last use of the rr
     last_use: DateTime<Utc>,
+    // Data ranking from RFC 2181
+    data_ranking: u8,
 }
 
 impl RRCache {
@@ -23,11 +25,12 @@ impl RRCache {
     /// assert_eq!(rr_cache.response_time, 5);
     /// '''
     ///
-    pub fn new(resource_record: ResourceRecord) -> Self {
+    pub fn new(resource_record: ResourceRecord, data_ranking: u8) -> Self {
         let rr_cache = RRCache {
             resource_record: resource_record,
             response_time: 5000,
             last_use: Utc::now(),
+            data_ranking: data_ranking,
         };
 
         rr_cache
@@ -50,6 +53,11 @@ impl RRCache {
     pub fn get_last_use(&self) -> DateTime<Utc> {
         self.last_use
     }
+
+    // Gets the data ranking in cache
+    pub fn get_data_ranking(&self) -> u8 {
+        self.data_ranking
+    }
 }
 
 // Setters
@@ -67,6 +75,11 @@ impl RRCache {
     // Sets the last use attribute with new value
     pub fn set_last_use(&mut self, last_use: DateTime<Utc>) {
         self.last_use = last_use;
+    }
+
+    // Sets the data ranking attribute with new value
+    pub fn set_data_ranking(&mut self, data_ranking: u8) {
+        self.data_ranking = data_ranking;
     }
 }
 

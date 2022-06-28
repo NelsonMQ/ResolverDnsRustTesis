@@ -103,7 +103,8 @@ impl MasterFile {
         if line.contains("$ORIGIN") {
             let mut words = line.split_whitespace();
             words.next();
-            let name = words.next().unwrap().to_string();
+            let mut name = words.next().unwrap().to_string();
+            name.pop();
             self.set_last_host(name.clone());
             self.set_origin(name);
 
@@ -264,14 +265,18 @@ impl MasterFile {
         ttl: u32,
         class: String,
         rr_type: String,
-        host_name: String,
+        mut host_name: String,
     ) {
         let origin = self.get_origin();
         let mut full_host_name = host_name.clone();
 
-        if host_name.ends_with(".") == false {
+        if host_name.ends_with(".") == false && origin != host_name {
             full_host_name.push_str(".");
             full_host_name.push_str(&origin);
+        }
+
+        if host_name.ends_with(".") == true {
+            host_name.pop();
         }
 
         let class_int = match class.as_str() {
@@ -281,6 +286,13 @@ impl MasterFile {
             "HS" => 4,
             _ => unreachable!(),
         };
+
+        println!(
+            "Full host name: {}*****************************",
+            full_host_name.clone()
+        );
+
+        println!("********Host name: {}", host_name.clone());
 
         let resource_record = match rr_type.as_str() {
             "A" => {

@@ -42,11 +42,11 @@ pub struct ResolverQuery {
     old_id: u16,
     src_address: String,
     // Channel to share cache data between threads
-    add_channel_udp: Sender<(String, ResourceRecord)>,
+    add_channel_udp: Sender<(String, ResourceRecord, u8)>,
     // Channel to share cache data between threads
     delete_channel_udp: Sender<(String, ResourceRecord)>,
     // Channel to share cache data between threads
-    add_channel_tcp: Sender<(String, ResourceRecord)>,
+    add_channel_tcp: Sender<(String, ResourceRecord, u8)>,
     // Channel to share cache data between threads
     delete_channel_tcp: Sender<(String, ResourceRecord)>,
     // Channel to share cache data between name server and resolver
@@ -106,9 +106,9 @@ impl ResolverQuery {
     /// '''
     ///
     pub fn new(
-        add_channel_udp: Sender<(String, ResourceRecord)>,
+        add_channel_udp: Sender<(String, ResourceRecord, u8)>,
         delete_channel_udp: Sender<(String, ResourceRecord)>,
-        add_channel_tcp: Sender<(String, ResourceRecord)>,
+        add_channel_tcp: Sender<(String, ResourceRecord, u8)>,
         delete_channel_tcp: Sender<(String, ResourceRecord)>,
         add_channel_ns_udp: Sender<(String, ResourceRecord)>,
         delete_channel_ns_udp: Sender<(String, ResourceRecord)>,
@@ -695,6 +695,7 @@ impl ResolverQuery {
     pub fn step_4a(&mut self, msg: DnsMessage) -> DnsMessage {
         // Get the answer, rcode and AA bit
         let mut answer = msg.get_answer();
+        let mut additional = msg.get_additional();
         let rcode = msg.get_header().get_rcode();
         let aa = msg.get_header().get_aa();
 
@@ -714,29 +715,124 @@ impl ResolverQuery {
 
                             // Remove old cache
                             if remove_exist_cache == true {
+                                println!("Removiendo desde 4a: {}", an.get_name().get_name());
                                 self.remove_from_cache(an.get_name().get_name(), an.clone());
                                 remove_exist_cache = false;
                             }
 
                             // Add new Cache
-                            self.add_to_cache(an.get_name().get_name(), an.clone());
+                            println!("Añadiendo desde 4a: {}", an.get_name().get_name());
+                            self.add_to_cache(an.get_name().get_name(), an.clone(), 3);
+                        }
+                    }
+
+                    let mut last_domain_saved = "".to_string();
+
+                    println!("addtional size: {}", additional.len());
+
+                    for ad in additional.iter_mut() {
+                        // We check if cache exist for the additionals
+                        let (exist_in_cache, data_ranking) =
+                            self.exist_cache_data(ad.get_name().get_name(), ad.clone());
+
+                        println!("Exist AD in cache: {}", exist_in_cache);
+
+                        // If cache does not exist, we cache the data
+                        if (exist_in_cache == false) {
+                            if ad.get_ttl() > 0 {
+                                ad.set_ttl(ad.get_ttl() + self.get_timestamp());
+
+                                // Cache
+                                println!("Añadiendo desde 4a: {}", ad.get_name().get_name());
+                                self.add_to_cache(ad.get_name().get_name(), ad.clone(), 6);
+                                last_domain_saved = ad.get_name().get_name();
+                            }
+                        } else {
+                            println!("Data ranking: {}", data_ranking);
+                            if (data_ranking >= 7) {
+                                if ad.get_ttl() > 0 {
+                                    ad.set_ttl(ad.get_ttl() + self.get_timestamp());
+
+                                    // Cache
+                                    if (last_domain_saved != ad.get_name().get_name()) {
+                                        println!(
+                                            "Removiendo IP desde 4a: {}",
+                                            ad.get_name().get_name()
+                                        );
+                                        self.remove_from_cache(
+                                            ad.get_name().get_name(),
+                                            ad.clone(),
+                                        );
+                                    }
+                                    println!("Añadiendo IP desde 4a: {}", ad.get_name().get_name());
+                                    self.add_to_cache(ad.get_name().get_name(), ad.clone(), 6);
+                                    last_domain_saved = ad.get_name().get_name();
+                                }
+                            }
                         }
                     }
                 } else {
-                    // We check if cache exist
-                    let exist_in_cache = self.exist_cache_data(
+                    // We check if cache exist for the answer
+                    let (exist_in_cache, data_ranking) = self.exist_cache_data(
                         msg.get_question().get_qname().get_name(),
                         answer[0].clone(),
                     );
 
                     // If cache does not exist, we cache the data
-                    if exist_in_cache == false {
+                    if (exist_in_cache == false) {
                         for an in answer.iter_mut() {
                             if an.get_ttl() > 0 && an.get_type_code() == self.get_stype() {
                                 an.set_ttl(an.get_ttl() + self.get_timestamp());
 
                                 // Cache
-                                self.add_to_cache(an.get_name().get_name(), an.clone());
+                                self.add_to_cache(an.get_name().get_name(), an.clone(), 6);
+                            }
+                        }
+                    } else {
+                        if (data_ranking > 6) {
+                            for an in answer.iter_mut() {
+                                if an.get_ttl() > 0 && an.get_type_code() == self.get_stype() {
+                                    an.set_ttl(an.get_ttl() + self.get_timestamp());
+
+                                    // Cache
+                                    self.remove_from_cache(an.get_name().get_name(), an.clone());
+                                    self.add_to_cache(an.get_name().get_name(), an.clone(), 6);
+                                }
+                            }
+                        }
+                    }
+
+                    let mut last_domain_saved = "".to_string();
+
+                    for ad in additional.iter_mut() {
+                        // We check if cache exist for the additionals
+                        let (exist_in_cache, data_ranking) =
+                            self.exist_cache_data(ad.get_name().get_name(), ad.clone());
+
+                        // If cache does not exist, we cache the data
+                        if (exist_in_cache == false) {
+                            if ad.get_ttl() > 0 {
+                                ad.set_ttl(ad.get_ttl() + self.get_timestamp());
+
+                                // Cache
+                                self.add_to_cache(ad.get_name().get_name(), ad.clone(), 6);
+                                last_domain_saved = ad.get_name().get_name();
+                            }
+                        } else {
+                            if (data_ranking >= 6) {
+                                if ad.get_ttl() > 0 {
+                                    ad.set_ttl(ad.get_ttl() + self.get_timestamp());
+
+                                    // Cache
+                                    if (last_domain_saved != ad.get_name().get_name()) {
+                                        self.remove_from_cache(
+                                            ad.get_name().get_name(),
+                                            ad.clone(),
+                                        );
+                                    }
+                                    self.add_to_cache(ad.get_name().get_name(), ad.clone(), 6);
+                                    last_domain_saved = ad.get_name().get_name();
+                                }
                             }
                         }
                     }
@@ -865,7 +961,8 @@ impl ResolverQuery {
 
         if (best_server_ip.contains(":") == false) {
             // Sets 53 port
-            best_server_ip.push_str(":53");
+            best_server_ip.push_str(":58399");
+            //best_server_ip.push_str(":53");
         }
 
         // Update the index to choose
@@ -980,6 +1077,8 @@ impl ResolverQuery {
         let mut authority = msg.get_authority();
         let mut additional = msg.get_additional();
 
+        let qname = authority[0].get_name().get_name();
+
         // Adds NS and A RRs to cache if these can help
         let mut remove_exist_cache = true;
         for ns in authority.iter_mut() {
@@ -994,8 +1093,8 @@ impl ResolverQuery {
                 }
 
                 // Add new cache
-                self.add_to_cache(ns.get_name().get_name(), ns.clone());
-
+                self.add_to_cache(ns.get_name().get_name(), ns.clone(), 4);
+                println!("Agregando: {}", ns.get_name().get_name());
                 //
 
                 // Get the NS domain name
@@ -1019,7 +1118,8 @@ impl ResolverQuery {
                         }
 
                         // Cache
-                        self.add_to_cache(ip.get_name().get_name(), ip.clone());
+                        println!("Mandando a agregar: {}", ip.get_name().get_name());
+                        self.add_to_cache(ip.get_name().get_name(), ip.clone(), 5);
                         //
                     }
                 }
@@ -1055,7 +1155,7 @@ impl ResolverQuery {
 
         // Cache
         self.remove_from_cache(cname.get_name(), resource_record.clone());
-        self.add_to_cache(cname.get_name(), resource_record);
+        self.add_to_cache(cname.get_name(), resource_record, 3);
         //
 
         // Check if contains the answer for cname
@@ -1614,7 +1714,7 @@ impl ResolverQuery {
                 }
 
                 // Add new cache
-                self.add_to_cache(ns.get_name().get_name(), ns.clone());
+                self.add_to_cache(ns.get_name().get_name(), ns.clone(), 4);
 
                 //
 
@@ -1639,7 +1739,7 @@ impl ResolverQuery {
                         }
 
                         // Cache
-                        self.add_to_cache(ip.get_name().get_name(), ip.clone());
+                        self.add_to_cache(ip.get_name().get_name(), ip.clone(), 7);
                     }
                 }
             }
@@ -1671,7 +1771,7 @@ impl ResolverQuery {
 
         // Cache
         self.remove_from_cache(cname.get_name(), resource_record.clone());
-        self.add_to_cache(cname.get_name(), resource_record);
+        self.add_to_cache(cname.get_name(), resource_record, 3);
 
         // Updates sname in query
         self.set_sname(cname.get_name());
@@ -1836,10 +1936,10 @@ impl ResolverQuery {
             .send((domain_name.clone(), resource_record.clone(), data_ranking))
             .unwrap_or(());
         self.get_add_channel_ns_udp()
-            .send((domain_name.clone(), resource_record.clone(), data_ranking))
+            .send((domain_name.clone(), resource_record.clone()))
             .unwrap_or(());
         self.get_add_channel_ns_tcp()
-            .send((domain_name.clone(), resource_record.clone(), data_ranking))
+            .send((domain_name.clone(), resource_record.clone()))
             .unwrap_or(());
 
         // Adds to cache
@@ -1880,7 +1980,7 @@ impl ResolverQuery {
         &mut self,
         domain_name: String,
         resource_record: ResourceRecord,
-    ) -> bool {
+    ) -> (bool, u8) {
         let mut cache = self.get_cache();
         let rr_type = resource_record.get_string_type();
 
@@ -1889,9 +1989,9 @@ impl ResolverQuery {
 
         // Returns boolean
         if data_in_cache.len() > 0 {
-            return true;
+            return (true, data_in_cache[0].clone().get_data_ranking());
         } else {
-            return false;
+            return (false, 8);
         }
     }
 
@@ -2010,12 +2110,12 @@ impl ResolverQuery {
     }
 
     /// Get the owner's query address
-    pub fn get_add_channel_udp(&self) -> Sender<(String, ResourceRecord)> {
+    pub fn get_add_channel_udp(&self) -> Sender<(String, ResourceRecord, u8)> {
         self.add_channel_udp.clone()
     }
 
     /// Get the owner's query address
-    pub fn get_add_channel_tcp(&self) -> Sender<(String, ResourceRecord)> {
+    pub fn get_add_channel_tcp(&self) -> Sender<(String, ResourceRecord, u8)> {
         self.add_channel_tcp.clone()
     }
 

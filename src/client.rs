@@ -1,9 +1,6 @@
 pub mod config;
 
 use crate::client::config::CLIENT_IP_PORT;
-use crate::client::config::HOST_NAME;
-use crate::client::config::QCLASS;
-use crate::client::config::QTYPE;
 use crate::client::config::RESOLVER_IP_PORT;
 use crate::client::config::TIMEOUT;
 use crate::client::config::TRANSPORT;
@@ -19,7 +16,7 @@ use std::net::TcpStream;
 use std::net::UdpSocket;
 use std::time::{Duration, Instant};
 
-pub fn run_client(host_name: String, qtype: u16, qclass: u16) {
+pub fn run_client(host_name: String, qclass: u16, qtype: u16) {
     //Start timestamp
     let now = Instant::now();
 

@@ -224,7 +224,7 @@ impl NameServer {
 
             while next_value.is_none() == false {
                 let (name, rr) = next_value.unwrap();
-                cache.add(name, rr);
+                cache.add(name, rr, 7);
                 next_value = received_add.next();
             }
 
@@ -249,8 +249,6 @@ impl NameServer {
             self.set_queries_id(queries_id);
 
             //
-
-            println!("{}", "Message recv");
 
             let socket_copy = socket.try_clone().unwrap();
 
@@ -308,7 +306,7 @@ impl NameServer {
                         );
                     } else {
                         // We answer the query with local info
-                        let response_dns_msg = NameServer::step_2(
+                        let mut response_dns_msg = NameServer::step_2(
                             new_msg,
                             zones,
                             cache,
@@ -318,12 +316,20 @@ impl NameServer {
                             tx_delete_ns_tcp_copy,
                         );
 
+                        // Sets query type to response
+                        let mut header = response_dns_msg.get_header();
+                        header.set_qr(true);
+                        response_dns_msg.set_header(header);
+
                         //DEBUG//
                         println!(
                             "Response answer len: {}",
                             response_dns_msg.get_answer().len()
                         );
                         ////////
+                        ///
+
+                        println!("Header AA: {}", response_dns_msg.get_header().get_aa());
 
                         // Sends the answer to the client (or resolver)
                         NameServer::send_response_by_udp(
@@ -466,7 +472,7 @@ impl NameServer {
 
                     while next_value.is_none() == false {
                         let (name, rr) = next_value.unwrap();
-                        cache.add(name, rr);
+                        cache.add(name, rr, 7);
                         next_value = received_add.next();
                     }
 
@@ -613,6 +619,8 @@ impl NameServer {
         }
         //
 
+        println!("Encontró zona por clase");
+
         let zones_by_class = zones_by_class_option.unwrap();
 
         // If there are a zone
@@ -621,6 +629,8 @@ impl NameServer {
             None => (NSZone::new(), false),
         };
 
+        println!("Available: {}", available);
+
         // If we found a zone
         if zone.get_name() != "" && zone.get_active() == true {
             return (zone, available);
@@ -628,8 +638,13 @@ impl NameServer {
         // We found the next ancestor zone
         else {
             let dot_position = qname.find(".").unwrap_or(0);
+
+            println!("qname: {}", qname);
+            println!("dot position: {}", dot_position);
+
             if dot_position > 0 {
                 qname.replace_range(..dot_position + 1, "");
+                println!("new qname: {}", qname);
                 return NameServer::search_nearest_ancestor_zone(zones, qname, qclass);
             } else {
                 return (zone, available);
@@ -956,6 +971,8 @@ impl NameServer {
                 match name_ns.find(&zone.get_name()) {
                     Some(index) => {
                         let new_ns_name = name_ns[..index - 1].to_string();
+                        println!("new ns name: {}", new_ns_name);
+
                         let labels: Vec<&str> = new_ns_name.split(".").collect();
                         let mut a_glue_rrs = Vec::<ResourceRecord>::new();
                         let mut glue_zone = zone.clone();
@@ -963,6 +980,8 @@ impl NameServer {
                         // Goes down for the tree looking for the zone with glue rrs
                         for label in labels {
                             let exist_child = glue_zone.exist_child(label.to_string());
+
+                            println!("Exist child glue: {}", exist_child);
 
                             if exist_child == true {
                                 glue_zone = glue_zone.get_child(label.to_string()).0;
@@ -976,6 +995,8 @@ impl NameServer {
 
                         // Gets the glue rrs for the ns rr
                         a_glue_rrs = NameServer::look_for_type_records(name_ns, glue_rrs, 1);
+
+                        println!("GLue found: {}", a_glue_rrs.len());
 
                         additional.append(&mut a_glue_rrs);
                     }
@@ -1115,6 +1136,7 @@ impl NameServer {
 
         // Adds additional records
         if msg.get_authority().len() > 0 {
+            println!("Hay authority");
             return NameServer::step_6(msg, cache, zones);
         } else {
             let mut authority = Vec::<ResourceRecord>::new();
@@ -1188,10 +1210,13 @@ impl NameServer {
                 }
                 // Adds additional for NS data
                 2 => {
+                    println!("Entro a buscar las ips glue");
                     let name_ns = match answer.get_rdata() {
                         Rdata::SomeNsRdata(val) => val.get_nsdname().get_name(),
                         _ => unreachable!(),
                     };
+
+                    println!("Name a buscar: {}", name_ns.clone());
 
                     let (zone, _available) = NameServer::search_nearest_ancestor_zone(
                         zones.clone(),
@@ -1199,14 +1224,40 @@ impl NameServer {
                         qclass.clone(),
                     );
 
-                    if zone.get_subzone() == true {
-                        let glue_rrs = zone.get_glue_rrs();
+                    let labels: Vec<&str> = name_ns.split(".").collect();
+                    let mut last_zone = zone.clone();
+
+                    // Goes down for the tree looking for the zone with glue rrs
+                    for label in labels {
+                        let exist_child = last_zone.exist_child(label.to_string());
+
+                        println!("Exist child glue: {}", exist_child);
+
+                        if exist_child == true {
+                            last_zone = last_zone.get_child(label.to_string()).0;
+                        } else {
+                            break;
+                        }
+                    }
+
+                    println!("es subzona: {}", last_zone.get_subzone());
+
+                    if last_zone.get_subzone() == true {
+                        let glue_rrs = last_zone.get_glue_rrs();
 
                         let mut a_glue_rrs =
                             NameServer::look_for_type_records(name_ns, glue_rrs, 1);
 
                         additional.append(&mut a_glue_rrs);
                     } else {
+                        // In zone
+                        let rrs_zone = last_zone.get_rrs_by_type(1);
+
+                        for rr_zone in rrs_zone {
+                            additional.push(rr_zone);
+                        }
+
+                        // In cache
                         let rrs = cache.get(name_ns, "A".to_string());
 
                         for rr in rrs {
@@ -1219,6 +1270,9 @@ impl NameServer {
         }
 
         msg.set_additional(additional);
+
+        println!("Authority size: {}", msg.get_authority().len());
+        println!("Additional size: {}", msg.get_additional().len());
 
         return msg;
     }
@@ -1257,7 +1311,11 @@ impl NameServer {
 
         // Msg size < 512
         if bytes.len() <= 512 {
-            println!("Enviando mensaje de respuesta: {}", src_address.clone());
+            println!(
+                "Enviando mensaje de respuesta: {}, largo: {}",
+                src_address.clone(),
+                bytes.len()
+            );
 
             socket
                 .send_to(&bytes, src_address)

@@ -39,11 +39,11 @@ pub struct Resolver {
     // Name server data
     ns_data: HashMap<u16, HashMap<String, NSZone>>,
     // Channel to share cache data between threads
-    add_sender_udp: Sender<(String, ResourceRecord)>,
+    add_sender_udp: Sender<(String, ResourceRecord, u8)>,
     // Channel to share cache data between threads
     delete_sender_udp: Sender<(String, ResourceRecord)>,
     // Channel to share cache data between threads
-    add_sender_tcp: Sender<(String, ResourceRecord)>,
+    add_sender_tcp: Sender<(String, ResourceRecord, u8)>,
     // Channel to share cache data between threads
     delete_sender_tcp: Sender<(String, ResourceRecord)>,
     // Channel to share cache data between name server and resolver
@@ -67,9 +67,9 @@ pub struct Resolver {
 impl Resolver {
     /// Creates a new Resolver with default values
     pub fn new(
-        add_sender_udp: Sender<(String, ResourceRecord)>,
+        add_sender_udp: Sender<(String, ResourceRecord, u8)>,
         delete_sender_udp: Sender<(String, ResourceRecord)>,
-        add_sender_tcp: Sender<(String, ResourceRecord)>,
+        add_sender_tcp: Sender<(String, ResourceRecord, u8)>,
         delete_sender_tcp: Sender<(String, ResourceRecord)>,
         add_sender_ns_udp: Sender<(String, ResourceRecord)>,
         delete_sender_ns_udp: Sender<(String, ResourceRecord)>,
@@ -109,9 +109,9 @@ impl Resolver {
     //Runs a tcp and udp resolver
     pub fn run_resolver(
         &mut self,
-        rx_add_udp: Receiver<(String, ResourceRecord)>,
+        rx_add_udp: Receiver<(String, ResourceRecord, u8)>,
         rx_delete_udp: Receiver<(String, ResourceRecord)>,
-        rx_add_tcp: Receiver<(String, ResourceRecord)>,
+        rx_add_tcp: Receiver<(String, ResourceRecord, u8)>,
         rx_delete_tcp: Receiver<(String, ResourceRecord)>,
         rx_update_cache_udp: Receiver<(String, String, u32)>,
         rx_update_cache_tcp: Receiver<(String, String, u32)>,
@@ -131,7 +131,7 @@ impl Resolver {
     // Runs a udp resolver
     pub fn run_resolver_udp(
         &mut self,
-        rx_add_udp: Receiver<(String, ResourceRecord)>,
+        rx_add_udp: Receiver<(String, ResourceRecord, u8)>,
         rx_delete_udp: Receiver<(String, ResourceRecord)>,
         rx_update_cache_udp: Receiver<(String, String, u32)>,
     ) {
@@ -264,8 +264,9 @@ impl Resolver {
             let mut cache = self.get_cache();
 
             while next_value.is_none() == false {
-                let (name, rr) = next_value.unwrap();
-                cache.add(name, rr);
+                let (name, rr, data_ranking) = next_value.unwrap();
+                println!("Añadiendo: {}", name.clone());
+                cache.add(name, rr, data_ranking);
                 next_value = received_add.next();
             }
 
@@ -673,7 +674,7 @@ impl Resolver {
     // Runs a tcp resolver
     pub fn run_resolver_tcp(
         &mut self,
-        rx_add_tcp: Receiver<(String, ResourceRecord)>,
+        rx_add_tcp: Receiver<(String, ResourceRecord, u8)>,
         rx_delete_tcp: Receiver<(String, ResourceRecord)>,
         rx_update_cache_tcp: Receiver<(String, String, u32)>,
     ) {
@@ -765,8 +766,8 @@ impl Resolver {
                     let mut cache = self.get_cache();
 
                     while next_value.is_none() == false {
-                        let (name, rr) = next_value.unwrap();
-                        cache.add(name, rr);
+                        let (name, rr, data_ranking) = next_value.unwrap();
+                        cache.add(name, rr, data_ranking);
                         next_value = received_add.next();
                     }
 
@@ -1101,12 +1102,12 @@ impl Resolver {
     }
 
     /// Get the owner's query address
-    pub fn get_add_sender_udp(&self) -> Sender<(String, ResourceRecord)> {
+    pub fn get_add_sender_udp(&self) -> Sender<(String, ResourceRecord, u8)> {
         self.add_sender_udp.clone()
     }
 
     /// Get the owner's query address
-    pub fn get_add_sender_tcp(&self) -> Sender<(String, ResourceRecord)> {
+    pub fn get_add_sender_tcp(&self) -> Sender<(String, ResourceRecord, u8)> {
         self.add_sender_tcp.clone()
     }
 
