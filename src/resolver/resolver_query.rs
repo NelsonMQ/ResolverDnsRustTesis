@@ -1812,7 +1812,12 @@ impl ResolverQuery {
 // Others utils
 impl ResolverQuery {
     // Add a new element to cache
-    pub fn add_to_cache(&mut self, domain_name: String, resource_record: ResourceRecord) {
+    pub fn add_to_cache(
+        &mut self,
+        domain_name: String,
+        resource_record: ResourceRecord,
+        data_ranking: u8,
+    ) {
         // DEBUG//
         println!(
             "-------------- Adding to cache: {} ------------------------",
@@ -1825,20 +1830,20 @@ impl ResolverQuery {
 
         // Sends info to update cache
         self.get_add_channel_udp()
-            .send((domain_name.clone(), resource_record.clone()))
+            .send((domain_name.clone(), resource_record.clone(), data_ranking))
             .unwrap_or(());
         self.get_add_channel_tcp()
-            .send((domain_name.clone(), resource_record.clone()))
+            .send((domain_name.clone(), resource_record.clone(), data_ranking))
             .unwrap_or(());
         self.get_add_channel_ns_udp()
-            .send((domain_name.clone(), resource_record.clone()))
+            .send((domain_name.clone(), resource_record.clone(), data_ranking))
             .unwrap_or(());
         self.get_add_channel_ns_tcp()
-            .send((domain_name.clone(), resource_record.clone()))
+            .send((domain_name.clone(), resource_record.clone(), data_ranking))
             .unwrap_or(());
 
         // Adds to cache
-        cache.add(domain_name, resource_record);
+        cache.add(domain_name, resource_record, data_ranking);
 
         // Sets the cache
         self.set_cache(cache);
