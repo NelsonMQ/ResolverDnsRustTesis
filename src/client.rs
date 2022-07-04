@@ -16,7 +16,7 @@ use std::net::TcpStream;
 use std::net::UdpSocket;
 use std::time::{Duration, Instant};
 
-pub fn run_client(host_name: String, qclass: u16, qtype: u16) {
+pub fn run_client(host_name: String, qclass: u16, qtype: u16) -> Duration {
     //Start timestamp
     let now = Instant::now();
 
@@ -235,4 +235,6 @@ pub fn run_client(host_name: String, qclass: u16, qtype: u16) {
 
     let elapsed = now.elapsed();
     println!("Elapsed: {:.2?}", elapsed);
+
+    return elapsed;
 }

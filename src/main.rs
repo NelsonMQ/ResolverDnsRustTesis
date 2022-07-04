@@ -7,6 +7,7 @@ pub mod message;
 pub mod name_server;
 pub mod resolver;
 pub mod rr_cache;
+pub mod experiments;
 
 use crate::name_server::NameServer;
 use crate::resolver::slist::Slist;
@@ -23,7 +24,7 @@ use crate::config::SBELT_ROOT_IPS;
 pub fn main() {
     // Users input
     let mut input_line = String::new();
-    println!("Enter program to run [C/R/N]: ");
+    println!("Enter program to run [C/R/N/TRE]: ");
     std::io::stdin().read_line(&mut input_line).unwrap();
 
     let trim_input_line = input_line.trim();
@@ -49,6 +50,15 @@ pub fn main() {
         let qclass = input_line.trim().parse::<u16>().unwrap();
 
         client::run_client(host_name.to_string(), qtype, qclass);
+    } else if trim_input_line == "TRE" {
+        
+        let mut input_line = String::new();
+        println!("Enter file with websites domains: ");
+        std::io::stdin().read_line(&mut input_line).unwrap();
+
+        let file_name_experiment = input_line.trim();
+
+        experiments::response_time_experiment(file_name_experiment.to_string());
     } else {
         // Channels
         let (add_sender_udp, add_recv_udp) = mpsc::channel();
@@ -97,6 +107,7 @@ pub fn main() {
                 delete_recv_tcp,
                 rx_update_cache_udp,
                 rx_update_cache_tcp,
+                true
             );
         } else if trim_input_line == "N" {
             let mut input_line = String::new();

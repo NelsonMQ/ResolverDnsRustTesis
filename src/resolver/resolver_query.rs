@@ -961,8 +961,8 @@ impl ResolverQuery {
 
         if (best_server_ip.contains(":") == false) {
             // Sets 53 port
-            best_server_ip.push_str(":58399");
-            //best_server_ip.push_str(":53");
+            //best_server_ip.push_str(":58399");
+            best_server_ip.push_str(":53");
         }
 
         // Update the index to choose
@@ -1918,6 +1918,7 @@ impl ResolverQuery {
         resource_record: ResourceRecord,
         data_ranking: u8,
     ) {
+
         // DEBUG//
         println!(
             "-------------- Adding to cache: {} ------------------------",
@@ -1947,6 +1948,7 @@ impl ResolverQuery {
 
         // Sets the cache
         self.set_cache(cache);
+        
     }
 
     // Removes an element from cache

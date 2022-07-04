@@ -115,17 +115,18 @@ impl Resolver {
         rx_delete_tcp: Receiver<(String, ResourceRecord)>,
         rx_update_cache_udp: Receiver<(String, String, u32)>,
         rx_update_cache_tcp: Receiver<(String, String, u32)>,
+        save_in_cache: bool,
     ) {
         // Copy the resolver instance to use it in udp resolver
         let mut resolver_copy = self.clone();
 
         // Runs an udp resolver
         thread::spawn(move || {
-            resolver_copy.run_resolver_udp(rx_add_udp, rx_delete_udp, rx_update_cache_udp);
+            resolver_copy.run_resolver_udp(rx_add_udp, rx_delete_udp, rx_update_cache_udp, save_in_cache);
         });
 
         // Runs a tcp resolver
-        self.run_resolver_tcp(rx_add_tcp, rx_delete_tcp, rx_update_cache_tcp);
+        self.run_resolver_tcp(rx_add_tcp, rx_delete_tcp, rx_update_cache_tcp, save_in_cache);
     }
 
     // Runs a udp resolver
@@ -134,6 +135,7 @@ impl Resolver {
         rx_add_udp: Receiver<(String, ResourceRecord, u8)>,
         rx_delete_udp: Receiver<(String, ResourceRecord)>,
         rx_update_cache_udp: Receiver<(String, String, u32)>,
+        save_in_cache: bool,
     ) {
         // Hashmap to save the queries in process
         let mut queries_hash_by_id = HashMap::<u16, ResolverQuery>::new();
@@ -255,23 +257,25 @@ impl Resolver {
 
             //
 
-            // Adding to Cache
+            if save_in_cache {
+                // Adding to Cache
 
-            let mut received_add = rx_add_udp.try_iter();
+                let mut received_add = rx_add_udp.try_iter();
 
-            let mut next_value = received_add.next();
+                let mut next_value = received_add.next();
 
-            let mut cache = self.get_cache();
+                let mut cache = self.get_cache();
 
-            while next_value.is_none() == false {
-                let (name, rr, data_ranking) = next_value.unwrap();
-                println!("Añadiendo: {}", name.clone());
-                cache.add(name, rr, data_ranking);
-                next_value = received_add.next();
+                while next_value.is_none() == false {
+                    let (name, rr, data_ranking) = next_value.unwrap();
+                    println!("Añadiendo: {}", name.clone());
+                    cache.add(name, rr, data_ranking);
+                    next_value = received_add.next();
+                }
+
+                self.set_cache(cache);
+                //
             }
-
-            self.set_cache(cache);
-            //
 
             // Check queries for timeout
 
@@ -677,6 +681,7 @@ impl Resolver {
         rx_add_tcp: Receiver<(String, ResourceRecord, u8)>,
         rx_delete_tcp: Receiver<(String, ResourceRecord)>,
         rx_update_cache_tcp: Receiver<(String, String, u32)>,
+        save_in_cache: bool,
     ) {
         // Vector to save the queries in process
         let mut queries_hash_by_id = HashMap::<u16, ResolverQuery>::new();
@@ -757,23 +762,25 @@ impl Resolver {
 
                     //
 
-                    // Adding to Cache
+                    if save_in_cache {
+                        // Adding to Cache
 
-                    let mut received_add = rx_add_tcp.try_iter();
+                        let mut received_add = rx_add_tcp.try_iter();
 
-                    let mut next_value = received_add.next();
+                        let mut next_value = received_add.next();
 
-                    let mut cache = self.get_cache();
+                        let mut cache = self.get_cache();
 
-                    while next_value.is_none() == false {
-                        let (name, rr, data_ranking) = next_value.unwrap();
-                        cache.add(name, rr, data_ranking);
-                        next_value = received_add.next();
+                        while next_value.is_none() == false {
+                            let (name, rr, data_ranking) = next_value.unwrap();
+                            cache.add(name, rr, data_ranking);
+                            next_value = received_add.next();
+                        }
+
+                        self.set_cache(cache);
+
+                        /////////////////////////////////
                     }
-
-                    self.set_cache(cache);
-
-                    /////////////////////////////////
 
                     println!("New connection: {}", stream.peer_addr().unwrap());
 
@@ -1036,7 +1043,8 @@ impl Resolver {
 
         // Send the message
         if bytes.len() <= 512 {
-            println!("Contenido mensaje: {:#?}", bytes);
+            
+            //println!("Contenido mensaje: {:#?}", bytes);
 
             socket
                 .send_to(&bytes, src_address)
