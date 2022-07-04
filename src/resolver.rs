@@ -122,11 +122,21 @@ impl Resolver {
 
         // Runs an udp resolver
         thread::spawn(move || {
-            resolver_copy.run_resolver_udp(rx_add_udp, rx_delete_udp, rx_update_cache_udp, save_in_cache);
+            resolver_copy.run_resolver_udp(
+                rx_add_udp,
+                rx_delete_udp,
+                rx_update_cache_udp,
+                save_in_cache,
+            );
         });
 
         // Runs a tcp resolver
-        self.run_resolver_tcp(rx_add_tcp, rx_delete_tcp, rx_update_cache_tcp, save_in_cache);
+        self.run_resolver_tcp(
+            rx_add_tcp,
+            rx_delete_tcp,
+            rx_update_cache_tcp,
+            save_in_cache,
+        );
     }
 
     // Runs a udp resolver
@@ -931,6 +941,20 @@ impl Resolver {
             Err(e) => (0, "".to_string()),
         };
 
+        let mut kill_resolver = true;
+
+        // Check kill resolver msg
+        for i in 0..30 {
+            if msg[i] == 0 {
+                kill_resolver = false;
+                break;
+            }
+        }
+
+        if kill_resolver {
+            panic!("Killing resolver");
+        }
+
         //// DEBUG ////
         println!("msg len: {}", number_of_bytes_msg);
         //////////////
@@ -1024,6 +1048,21 @@ impl Resolver {
         while tcp_msg_len > 0 {
             let mut msg = [0; 512];
             let number_of_bytes_msg = stream.read(&mut msg).expect("No data received");
+
+            let mut kill_resolver = true;
+
+            // Check kill resolver msg
+            for i in 0..30 {
+                if msg[i] == 0 {
+                    kill_resolver = false;
+                    break;
+                }
+            }
+
+            if kill_resolver {
+                panic!("Killing resolver");
+            }
+
             tcp_msg_len = tcp_msg_len - number_of_bytes_msg as u16;
             vec_msg.append(&mut msg.to_vec());
         }
@@ -1043,7 +1082,6 @@ impl Resolver {
 
         // Send the message
         if bytes.len() <= 512 {
-            
             //println!("Contenido mensaje: {:#?}", bytes);
 
             socket
