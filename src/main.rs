@@ -2,12 +2,12 @@ pub mod client;
 pub mod config;
 pub mod dns_cache;
 pub mod domain_name;
+pub mod experiments;
 pub mod global_tests;
 pub mod message;
 pub mod name_server;
 pub mod resolver;
 pub mod rr_cache;
-pub mod experiments;
 
 use crate::name_server::NameServer;
 use crate::resolver::slist::Slist;
@@ -24,7 +24,7 @@ use crate::config::SBELT_ROOT_IPS;
 pub fn main() {
     // Users input
     let mut input_line = String::new();
-    println!("Enter program to run [C/R/N/TRE]: ");
+    println!("Enter program to run [C/R/N/TRE/MCC]: ");
     std::io::stdin().read_line(&mut input_line).unwrap();
 
     let trim_input_line = input_line.trim();
@@ -51,7 +51,6 @@ pub fn main() {
 
         client::run_client(host_name.to_string(), qtype, qclass);
     } else if trim_input_line == "TRE" {
-        
         let mut input_line = String::new();
         println!("Enter file with websites domains: ");
         std::io::stdin().read_line(&mut input_line).unwrap();
@@ -59,6 +58,39 @@ pub fn main() {
         let file_name_experiment = input_line.trim();
 
         experiments::response_time_experiment(file_name_experiment.to_string());
+    } else if trim_input_line == "MCC1" {
+        let master_files_case_1 = [
+            "root_case_1.txt".to_string(),
+            "child_case_1.txt".to_string(),
+        ]
+        .to_vec();
+
+        experiments::missconfigured_experiments(1, master_files_case_1);
+    } else if trim_input_line == "MCC2" {
+        let master_files_case_2 = [
+            "root_case_2.txt".to_string(),
+            "child_case_2.txt".to_string(),
+        ]
+        .to_vec();
+
+        experiments::missconfigured_experiments(2, master_files_case_2);
+    } else if trim_input_line == "MCC3" {
+        let master_files_case_3 = [
+            "root_case_3.txt".to_string(),
+            "child_case_3.txt".to_string(),
+            "second_child_case_3.txt".to_string(),
+        ]
+        .to_vec();
+
+        experiments::missconfigured_experiments(3, master_files_case_3);
+    } else if trim_input_line == "MCC4" {
+        let master_files_case_4 = [
+            "root_case_4.txt".to_string(),
+            "child_case_4.txt".to_string(),
+        ]
+        .to_vec();
+
+        experiments::missconfigured_experiments(4, master_files_case_4);
     } else {
         // Channels
         let (add_sender_udp, add_recv_udp) = mpsc::channel();
@@ -107,7 +139,7 @@ pub fn main() {
                 delete_recv_tcp,
                 rx_update_cache_udp,
                 rx_update_cache_tcp,
-                true
+                true,
             );
         } else if trim_input_line == "N" {
             let mut input_line = String::new();

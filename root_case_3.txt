@@ -1,0 +1,15 @@
+$ORIGIN cl.
+@   IN        SOA     VENERA      Action\.domains (
+                                 20     ; SERIAL
+                                 7200   ; REFRESH
+                                 600    ; RETRY
+                                 3600000; EXPIRE
+                                 60)    ; MINIMUM
+
+              NS      A.ISI.EDU.
+              NS      VENERA
+              NS      VAXA
+
+dcc          NS       ns.dcc
+
+ns.dcc      A        192.168.1.90

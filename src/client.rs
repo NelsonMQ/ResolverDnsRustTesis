@@ -86,7 +86,8 @@ pub fn run_client(host_name: String, qclass: u16, qtype: u16) -> Duration {
                 dns_message = DnsMessage::from_bytes(&val).unwrap();
             }
             None => {
-                panic!("Temporary Error");
+                println!("Temporary Error");
+                return Duration::from_millis(0);
             }
         }
     }
@@ -104,6 +105,7 @@ pub fn run_client(host_name: String, qclass: u16, qtype: u16) -> Duration {
     // Not data found error
     if answer_count == 0 && header.get_qr() == true && header.get_aa() == true {
         println!("Not data found");
+        return Duration::from_millis(100000);
     } else {
         println!("-------------------------------------");
         println!(
