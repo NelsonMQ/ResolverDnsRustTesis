@@ -1,10 +1,10 @@
 dcc.cl 7
+dcc.cl 4
 dcc.cl 7
+dcc.cl 4
 dcc.cl 7
+dcc.cl 4
 dcc.cl 7
+dcc.cl 4
 dcc.cl 7
-uchile.dcc.cl 4
-uchile.dcc.cl 4
-uchile.dcc.cl 4
-uchile.dcc.cl 4
-uchile.dcc.cl 4
+dcc.cl 4

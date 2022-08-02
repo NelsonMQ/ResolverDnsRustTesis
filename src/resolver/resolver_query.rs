@@ -858,9 +858,14 @@ impl ResolverQuery {
         &mut self,
         socket: UdpSocket,
         rx_update_self_slist: Receiver<Slist>,
+        use_cache_for_answering: bool,
     ) -> Option<Vec<ResourceRecord>> {
-        // Gets local info
-        let local_info = self.look_for_local_info();
+        let mut local_info = Vec::new();
+
+        if use_cache_for_answering {
+            // Gets local info
+            local_info = self.look_for_local_info();
+        }
 
         // If local info exists, return those data
         if local_info.len() > 0 {
@@ -1193,7 +1198,7 @@ impl ResolverQuery {
         self.set_sname(cname.get_name());
 
         // Checks local info, and send the query if there is no local info
-        match self.step_1_udp(socket, rx_update_self_slist) {
+        match self.step_1_udp(socket, rx_update_self_slist, true) {
             Some(val) => {
                 println!("Local info!");
 
@@ -1456,9 +1461,14 @@ impl ResolverQuery {
         &mut self,
         mut query_msg: DnsMessage,
         update_slist_tcp_recv: Receiver<(String, Vec<ResourceRecord>)>,
+        use_cache_for_answering: bool,
     ) -> DnsMessage {
-        // Gets local info
-        let local_info = self.look_for_local_info();
+        let mut local_info = Vec::new();
+
+        if use_cache_for_answering {
+            // Gets local info
+            let local_info = self.look_for_local_info();
+        }
 
         if local_info.len() > 0 {
             //DEBUG//
@@ -1776,7 +1786,7 @@ impl ResolverQuery {
         // Updates sname in query
         self.set_sname(cname.get_name());
 
-        return self.step_1_tcp(msg, update_slist_tcp_recv);
+        return self.step_1_tcp(msg, update_slist_tcp_recv, true);
     }
 
     // Step 4d from RFC 1034 TCP version

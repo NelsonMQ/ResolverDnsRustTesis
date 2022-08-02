@@ -97,7 +97,7 @@ pub fn response_time_experiment(filename: String) {
                     delete_recv_tcp,
                     rx_update_cache_udp,
                     rx_update_cache_tcp,
-                    false,
+                    true,
                 );
             });
 
@@ -165,7 +165,7 @@ pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>) {
     let ROOT_MASTER_FILE = master_files_names[0].clone();
     let CHILD_MASTER_FILE = master_files_names[1].clone();
     let FIRST_QUERY = "dcc.cl".to_string();
-    let SECOND_QUERY = "uchile.dcc.cl".to_string();
+    let SECOND_QUERY = "dcc.cl".to_string();
 
     // Hash to save response times (0 response time means Temporary Error)
     let mut response_times = HashMap::<String, Vec<u128>>::new();
@@ -303,7 +303,7 @@ pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>) {
                 delete_recv_tcp,
                 rx_update_cache_udp,
                 rx_update_cache_tcp,
-                true,
+                false,
             );
         });
 
@@ -368,12 +368,11 @@ pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>) {
                     rx_update_cache_ns_tcp,
                 );
             });
-
-            // Sleep
-            let ten_millis = Duration::from_millis(1000);
-
-            thread::sleep(ten_millis);
         }
+        // Sleep
+        let ten_millis = Duration::from_millis(1000);
+
+        thread::sleep(ten_millis);
 
         let response_time_second = client::run_client(SECOND_QUERY.clone(), 1, 1);
 
