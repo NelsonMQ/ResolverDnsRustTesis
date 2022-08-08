@@ -16,7 +16,7 @@ use std::net::TcpStream;
 use std::net::UdpSocket;
 use std::time::{Duration, Instant};
 
-pub fn run_client(host_name: String, qclass: u16, qtype: u16) -> Duration {
+pub fn run_client(host_name: String, qclass: u16, qtype: u16) -> (Duration, Vec<String>) {
     //Start timestamp
     let now = Instant::now();
 
@@ -87,10 +87,13 @@ pub fn run_client(host_name: String, qclass: u16, qtype: u16) -> Duration {
             }
             None => {
                 println!("Temporary Error");
-                return Duration::from_millis(0);
+                return (Duration::from_millis(0), Vec::new());
             }
         }
     }
+
+    let elapsed = now.elapsed();
+    println!("Elapsed: {:.2?}", elapsed);
 
     // Get the message and print the information
     let header = dns_message.get_header();
@@ -105,7 +108,7 @@ pub fn run_client(host_name: String, qclass: u16, qtype: u16) -> Duration {
     // Not data found error
     if answer_count == 0 && header.get_qr() == true && header.get_aa() == true {
         println!("Not data found");
-        return Duration::from_millis(100000);
+        return (Duration::from_millis(100000), Vec::new());
     } else {
         println!("-------------------------------------");
         println!(
@@ -113,6 +116,9 @@ pub fn run_client(host_name: String, qclass: u16, qtype: u16) -> Duration {
             answer_count, authority_count, additional_count
         );
         println!("-------------------------------------");
+
+        // Vec to save ns rr's data
+        let mut answer_ns_data_vec = Vec::new();
 
         for answer in answers {
             match answer.get_rdata() {
@@ -127,6 +133,7 @@ pub fn run_client(host_name: String, qclass: u16, qtype: u16) -> Duration {
                     )
                 }
                 Rdata::SomeNsRdata(val) => {
+                    answer_ns_data_vec.push(val.get_nsdname().get_name());
                     println!("Name Server: {}", val.get_nsdname().get_name())
                 }
                 Rdata::SomeCnameRdata(val) => {
@@ -233,10 +240,6 @@ pub fn run_client(host_name: String, qclass: u16, qtype: u16) -> Duration {
                 }
             }
         }
+        return (elapsed, answer_ns_data_vec);
     }
-
-    let elapsed = now.elapsed();
-    println!("Elapsed: {:.2?}", elapsed);
-
-    return elapsed;
 }

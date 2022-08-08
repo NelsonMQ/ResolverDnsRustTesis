@@ -966,8 +966,8 @@ impl ResolverQuery {
 
         if (best_server_ip.contains(":") == false) {
             // Sets 53 port
-            best_server_ip.push_str(":58399");
-            //best_server_ip.push_str(":53");
+            //best_server_ip.push_str(":58399");
+            best_server_ip.push_str(":53");
         }
 
         // Update the index to choose

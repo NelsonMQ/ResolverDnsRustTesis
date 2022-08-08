@@ -24,7 +24,7 @@ use crate::config::SBELT_ROOT_IPS;
 pub fn main() {
     // Users input
     let mut input_line = String::new();
-    println!("Enter program to run [C/R/N/TRE/MCC]: ");
+    println!("Enter program to run [C/R/N/TRE/MCC1/MCC2/MCC3/MCC4/MCCZ1/MCCZ2/MCCZ3]\n - C: Dns client \n - R: Dns resolver \n - N: Dns Name Server \n - TRE: Time Response Experiment \n - MCCX: MissConfigured Case X \n - MCCZX: MissConfigured Zone Experiment number X");
     std::io::stdin().read_line(&mut input_line).unwrap();
 
     let trim_input_line = input_line.trim();
@@ -91,6 +91,22 @@ pub fn main() {
         .to_vec();
 
         experiments::missconfigured_experiments(4, master_files_case_4);
+    } else if trim_input_line == "MCCZ1" {
+        experiments::get_domains_and_ns_records_from_zone_file(
+            "CL-20220725.zone".to_string(),
+            "zone_ns_records.txt".to_string(),
+        );
+    } else if trim_input_line == "MCCZ2" {
+        experiments::get_ns_records_from_child_zone(
+            "zone_ns_records.txt".to_string(),
+            "zone_ns_records_child.txt".to_string(),
+        );
+    } else if trim_input_line == "MCCZ3" {
+        experiments::compare_parent_and_child_ns_records(
+            "zone_ns_records.txt".to_string(),
+            "zone_ns_records_child.txt".to_string(),
+            "missconfigured_domains.txt".to_string(),
+        );
     } else {
         // Channels
         let (add_sender_udp, add_recv_udp) = mpsc::channel();
