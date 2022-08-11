@@ -307,6 +307,28 @@ impl Resolver {
 
             ////////////////////////////////////////////////////////////////////
 
+            ////////////////////////////////////////////////////////////////////
+
+            /// Print cache ///
+            ///
+            let current_cache = self.get_cache();
+            let cache_hash = current_cache.get_cache();
+
+            println!(
+                "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    RRs en caché   %%%%%%%%%%%%%%%%%%%%%%%%%%%%"
+            );
+
+            for (rr_type, hash_domains) in &cache_hash {
+                for (domain_name, vector_cache) in hash_domains {
+                    for rr in vector_cache {
+                        println!("RR type: {} - Domain name: {}", rr_type, domain_name);
+                    }
+                }
+            }
+
+            println!("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
+            ////////////////////////
+            ///
             println!("{}", "Waiting msg");
 
             // We receive the msg

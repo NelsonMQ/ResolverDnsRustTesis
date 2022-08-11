@@ -705,3 +705,98 @@ pub fn compare_parent_and_child_ns_records(
         len_child_line = child_reader.read_line(&mut child_line).unwrap();
     }
 }
+
+pub fn find_affected_domains_experiment(
+    input_domains_file: String,
+    output_affected_domains_file: String,
+) {
+    // Run the resolver (the resolver should not save cache)
+    // Channels
+    let (add_sender_udp, add_recv_udp) = mpsc::channel();
+    let (delete_sender_udp, delete_recv_udp) = mpsc::channel();
+    let (add_sender_tcp, add_recv_tcp) = mpsc::channel();
+    let (delete_sender_tcp, delete_recv_tcp) = mpsc::channel();
+    let (add_sender_ns_udp, add_recv_ns_udp) = mpsc::channel();
+    let (delete_sender_ns_udp, delete_recv_ns_udp) = mpsc::channel();
+    let (add_sender_ns_tcp, add_recv_ns_tcp) = mpsc::channel();
+    let (delete_sender_ns_tcp, delete_recv_ns_tcp) = mpsc::channel();
+    let (update_cache_sender_udp, rx_update_cache_udp) = mpsc::channel();
+    let (update_cache_sender_tcp, rx_update_cache_tcp) = mpsc::channel();
+    let (update_cache_sender_ns_udp, rx_update_cache_ns_udp) = mpsc::channel();
+    let (update_cache_sender_ns_tcp, rx_update_cache_ns_tcp) = mpsc::channel();
+
+    let mut resolver = Resolver::new(
+        add_sender_udp.clone(),
+        delete_sender_udp.clone(),
+        add_sender_tcp.clone(),
+        delete_sender_tcp.clone(),
+        add_sender_ns_udp.clone(),
+        delete_sender_ns_udp.clone(),
+        add_sender_ns_tcp.clone(),
+        delete_sender_ns_tcp.clone(),
+        update_cache_sender_udp.clone(),
+        update_cache_sender_tcp.clone(),
+        update_cache_sender_ns_udp.clone(),
+        update_cache_sender_ns_tcp.clone(),
+    );
+
+    resolver.set_ip_address(RESOLVER_IP_PORT.to_string());
+
+    let mut sbelt = Slist::new();
+
+    for ip in SBELT_ROOT_IPS {
+        sbelt.insert(".".to_string(), ip.to_string(), 5000);
+    }
+
+    resolver.set_sbelt(sbelt);
+
+    thread::spawn(move || {
+        resolver.run_resolver(
+            add_recv_udp,
+            delete_recv_udp,
+            add_recv_tcp,
+            delete_recv_tcp,
+            rx_update_cache_udp,
+            rx_update_cache_tcp,
+            false,
+        );
+    });
+
+    // Read the domains file
+    // Open file
+    let file = File::open(input_domains_file).expect("file not found!");
+    let mut reader = BufReader::new(file);
+
+    // Read lines
+    for line in reader.lines() {
+        let new_line = line.unwrap();
+
+        //Split whitespace
+        let mut elements: Vec<String> = new_line.split_whitespace().map(String::from).collect();
+
+        // Domain name
+        let domain_name = elements[0].clone();
+
+        // Query to get NS records from parent zone
+        let (response_time_first, _) = client::run_client(domain_name.clone(), 1, 1);
+
+        // Second query to test the missconfigured domain
+        let (response_time_second, _) = client::run_client(domain_name.clone(), 1, 1);
+
+        // Open the file to append
+        let mut file = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .open(output_affected_domains_file.clone())
+            .unwrap();
+
+        // Write info
+        write!(
+            file,
+            "{} {} {}\n",
+            domain_name,
+            response_time_first.as_millis(),
+            response_time_second.as_millis()
+        );
+    }
+}

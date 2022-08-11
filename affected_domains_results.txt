@@ -1,0 +1,6 @@
+dcc.uchile.cl 339 29
+solotodo.cl 425 28
+dcc.uchile.cl 243 27
+solotodo.cl 332 28
+dcc.uchile.cl 182 17
+solotodo.cl 631 17

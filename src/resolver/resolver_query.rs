@@ -721,7 +721,11 @@ impl ResolverQuery {
                             }
 
                             // Add new Cache
-                            println!("Añadiendo desde 4a: {}", an.get_name().get_name());
+                            println!(
+                                "Añadiendo desde 4a: {} - type: {}",
+                                an.get_name().get_name(),
+                                an.get_type_code()
+                            );
                             self.add_to_cache(an.get_name().get_name(), an.clone(), 3);
                         }
                     }
