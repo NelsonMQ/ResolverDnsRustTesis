@@ -49,7 +49,7 @@ pub fn main() {
 
         let qclass = input_line.trim().parse::<u16>().unwrap();
 
-        client::run_client(host_name.to_string(), qtype, qclass);
+        client::run_client(host_name.to_string(), qclass, qtype);
     } else if trim_input_line == "TRE" {
         let mut input_line = String::new();
         println!("Enter file with websites domains: ");

@@ -400,6 +400,13 @@ impl Resolver {
                 let rd = dns_message.get_header().get_rd();
                 let id = dns_message.get_query_id();
 
+                println!(
+                    "MSG info: {} {} {}",
+                    sname.clone(),
+                    stype.clone(),
+                    sclass.clone()
+                );
+
                 let (tx_update_slist_tcp, rx_update_slist_tcp) = mpsc::channel();
 
                 let (tx_update_self_slist, rx_update_self_slist) = mpsc::channel();
@@ -981,6 +988,7 @@ impl Resolver {
 
         //// DEBUG ////
         println!("msg len: {}", number_of_bytes_msg);
+        //println!("msg: {:#?}", msg.clone());
         //////////////
 
         // If there is a empty msg
@@ -992,8 +1000,7 @@ impl Resolver {
         let tc = (msg[2] as u8 & 0b00000010) >> 1;
 
         /// DEBUG/////
-        println!("Truncado: {}", tc);
-
+        //println!("Truncado: {}", tc);
         let mut dns_msg_parsed_result;
 
         if tc == 1 {

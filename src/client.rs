@@ -37,6 +37,8 @@ pub fn run_client(host_name: String, qclass: u16, qtype: u16) -> (Duration, Vec<
         let socket = UdpSocket::bind(CLIENT_IP_PORT).expect("No connection");
         let msg_to_bytes = query_msg.to_bytes();
 
+        println!("msg: {:#?}", msg_to_bytes);
+
         socket.send_to(&msg_to_bytes, RESOLVER_IP_PORT);
 
         // Hashmap to save incomplete messages

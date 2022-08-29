@@ -580,7 +580,10 @@ pub fn get_ns_records_from_child_zone(domains_file: String, save_file: String) {
         let mut elements: Vec<String> = new_line.split_whitespace().map(String::from).collect();
 
         // Domain name
-        let domain_name = elements[0].clone();
+        let mut domain_name = elements[0].clone();
+
+        // Pop last dot
+        domain_name.pop();
 
         // Get NS records
         let (_, ns_records) = client::run_client(domain_name.clone(), 1, 2);

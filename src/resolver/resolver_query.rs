@@ -461,6 +461,7 @@ impl ResolverQuery {
 
     // Looks for local info in name server zone and cache
     pub fn look_for_local_info(&mut self) -> Vec<ResourceRecord> {
+        println!("stype {}", self.get_stype());
         // Gets necessary info
         let s_type = match self.get_stype() {
             1 => "A".to_string(),
@@ -1064,7 +1065,17 @@ impl ResolverQuery {
 
         // Finds the server that was asked
         let slist = self.get_slist();
-        let index_to_choose = (self.get_index_to_choose() - 1) % slist.len() as u16;
+
+        let mut index_to_choose = 0;
+
+        println!("SLIST len - {}", slist.len());
+
+        if self.get_index_to_choose() != 0 {
+            index_to_choose = (self.get_index_to_choose() - 1) % slist.len() as u16;
+        } else {
+            index_to_choose = slist.len() as u16 - 1;
+        };
+
         let best_server = slist.get(index_to_choose);
         let best_server_hostname = best_server.get(&"name".to_string()).unwrap();
 

@@ -278,7 +278,7 @@ impl NSZone {
 
         for (i, c) in name.chars().enumerate() {
             if i == 0 && !c.is_ascii_alphabetic() {
-                return false;
+                continue; // In chile exist domains with a digit at first position
             } else if i == name.len() - 1 && !c.is_ascii_alphanumeric() {
                 return false;
             } else if !(c.is_ascii_alphanumeric() || c == '-') {
