@@ -211,7 +211,7 @@ impl MasterFile {
         while value != "" {
             let value_type = self.get_value_type(value.to_string());
 
-            println!("Name: {}, value: {}", host_name.clone(), value_type);
+            //println!("Name: {}, value: {}", host_name.clone(), value_type);
 
             if value_type == 0 {
                 // TTL
@@ -287,12 +287,12 @@ impl MasterFile {
             _ => unreachable!(),
         };
 
-        println!(
+        /*println!(
             "Full host name: {}*****************************",
             full_host_name.clone()
-        );
+        );*/
 
-        println!("********Host name: {}", host_name.clone());
+        //println!("********Host name: {}", host_name.clone());
 
         let resource_record = match rr_type.as_str() {
             "A" => {

@@ -84,7 +84,7 @@ mod global_tests {
             UdpSocket::bind(CLIENT_IP_PORT.to_string()).expect("Failed to bind host socket");
         //
 
-        println!("{}", "Config ready");
+        //println!("{}", "Config ready");
 
         // Runs resolver
         thread::spawn(move || {
@@ -105,7 +105,7 @@ mod global_tests {
             .send_to(&query_msg.to_bytes(), RESOLVER_IP_PORT.to_string())
             .expect("failed to send message");
 
-        println!("{}", "Query sent");
+        //println!("{}", "Query sent");
 
         // Receive response UDP
         let mut response = [0; 512];
@@ -291,7 +291,7 @@ mod global_tests {
             UdpSocket::bind(CLIENT_IP_PORT.to_string()).expect("Failed to bind host socket");
         //
 
-        println!("{}", "Config ready");
+        //println!("{}", "Config ready");
 
         // Runs resolver
         thread::spawn(move || {
@@ -312,7 +312,7 @@ mod global_tests {
             .send_to(&query_msg.to_bytes(), RESOLVER_IP_PORT.to_string())
             .expect("failed to send message");
 
-        println!("{}", "Query sent");
+        //println!("{}", "Query sent");
 
         // Receive response UDP
         let mut response = [0; 512];
@@ -500,7 +500,7 @@ mod global_tests {
             UdpSocket::bind(CLIENT_IP_PORT.to_string()).expect("Failed to bind host socket");
         //
 
-        println!("{}", "Config ready");
+        //println!("{}", "Config ready");
 
         // Runs resolver
         thread::spawn(move || {
@@ -521,7 +521,7 @@ mod global_tests {
             .send_to(&query_msg.to_bytes(), RESOLVER_IP_PORT.to_string())
             .expect("failed to send message");
 
-        println!("{}", "Query sent");
+        //println!("{}", "Query sent");
 
         // Receive response UDP
         let mut response = [0; 512];
@@ -758,7 +758,7 @@ mod global_tests {
             UdpSocket::bind(CLIENT_IP_PORT.to_string()).expect("Failed to bind host socket");
         //
 
-        println!("{}", "Config ready");
+        //println!("{}", "Config ready");
 
         // Run NameServer
         let local_resolver_ip = "".to_string();
@@ -786,7 +786,7 @@ mod global_tests {
             .send_to(&query_msg.to_bytes(), ip_and_port_name_server)
             .expect("failed to send message");
 
-        println!("{}", "Query sent");
+        //println!("{}", "Query sent");
 
         // Receive response UDP
         let mut response = [0; 512];
@@ -903,7 +903,7 @@ mod global_tests {
 
         let full_msg = [&tcp_bytes_length, bytes.as_slice()].concat();
 
-        println!("{}", "Config ready");
+        //println!("{}", "Config ready");
 
         // Run NameServer
         let local_resolver_ip = "".to_string();
@@ -933,7 +933,7 @@ mod global_tests {
         client_stream.write(&full_msg);
         //
 
-        println!("{}", "Query sent");
+        //println!("{}", "Query sent");
 
         // Receive response TCP
         let mut response = [0; 512];
@@ -1044,7 +1044,7 @@ mod global_tests {
             UdpSocket::bind(CLIENT_IP_PORT.to_string()).expect("Failed to bind host socket");
         //
 
-        println!("{}", "Config ready");
+        //println!("{}", "Config ready");
 
         // Run NameServer
         let local_resolver_ip = "".to_string();
@@ -1072,7 +1072,7 @@ mod global_tests {
             .send_to(&query_msg.to_bytes(), ip_and_port_name_server)
             .expect("failed to send message");
 
-        println!("{}", "Query sent");
+        //println!("{}", "Query sent");
 
         // Receive response UDP
         let mut response = [0; 512];
@@ -1191,7 +1191,7 @@ mod global_tests {
 
         let full_msg = [&tcp_bytes_length, bytes.as_slice()].concat();
 
-        println!("{}", "Config ready");
+        //println!("{}", "Config ready");
 
         // Run NameServer
         let local_resolver_ip = "".to_string();
@@ -1221,7 +1221,7 @@ mod global_tests {
         client_stream.write(&full_msg);
         //
 
-        println!("{}", "Query sent");
+        //println!("{}", "Query sent");
 
         // Receive response TCP
         let mut response = [0; 512];
@@ -1334,7 +1334,7 @@ mod global_tests {
             UdpSocket::bind(CLIENT_IP_PORT.to_string()).expect("Failed to bind host socket");
         //
 
-        println!("{}", "Config ready");
+        //println!("{}", "Config ready");
 
         // Run NameServer
         let local_resolver_ip = "".to_string();
@@ -1362,7 +1362,7 @@ mod global_tests {
             .send_to(&query_msg.to_bytes(), ip_and_port_name_server)
             .expect("failed to send message");
 
-        println!("{}", "Query sent");
+        //println!("{}", "Query sent");
 
         // Receive response UDP
         let mut response = [0; 512];
@@ -1496,7 +1496,7 @@ mod global_tests {
 
         let full_msg = [&tcp_bytes_length, bytes.as_slice()].concat();
 
-        println!("{}", "Config ready");
+        //println!("{}", "Config ready");
 
         // Run NameServer
         let local_resolver_ip = "".to_string();
@@ -1526,7 +1526,7 @@ mod global_tests {
         client_stream.write(&full_msg);
         //
 
-        println!("{}", "Query sent");
+        //println!("{}", "Query sent");
 
         // Receive response TCP
         let mut response = [0; 512];
@@ -1654,7 +1654,7 @@ mod global_tests {
             UdpSocket::bind(CLIENT_IP_PORT.to_string()).expect("Failed to bind host socket");
         //
 
-        println!("{}", "Config ready");
+        //println!("{}", "Config ready");
 
         // Run NameServer
         let local_resolver_ip = "".to_string();
@@ -1682,7 +1682,7 @@ mod global_tests {
             .send_to(&query_msg.to_bytes(), ip_and_port_name_server)
             .expect("failed to send message");
 
-        println!("{}", "Query sent");
+        //println!("{}", "Query sent");
 
         // Receive response UDP
         let mut response = [0; 512];
@@ -1796,7 +1796,7 @@ mod global_tests {
 
         let full_msg = [&tcp_bytes_length, bytes.as_slice()].concat();
 
-        println!("{}", "Config ready");
+        //println!("{}", "Config ready");
 
         // Run NameServer
         let local_resolver_ip = "".to_string();
@@ -1826,7 +1826,7 @@ mod global_tests {
         client_stream.write(&full_msg);
         //
 
-        println!("{}", "Query sent");
+        //println!("{}", "Query sent");
 
         // Receive response TCP
         let mut response = [0; 512];
@@ -1934,7 +1934,7 @@ mod global_tests {
             UdpSocket::bind(CLIENT_IP_PORT.to_string()).expect("Failed to bind host socket");
         //
 
-        println!("{}", "Config ready");
+        //println!("{}", "Config ready");
 
         // Run NameServer
         let local_resolver_ip = "".to_string();
@@ -1962,7 +1962,7 @@ mod global_tests {
             .send_to(&query_msg.to_bytes(), ip_and_port_name_server)
             .expect("failed to send message");
 
-        println!("{}", "Query sent");
+        //println!("{}", "Query sent");
 
         // Receive response UDP
         let mut response = [0; 512];
@@ -2084,7 +2084,7 @@ mod global_tests {
 
         let full_msg = [&tcp_bytes_length, bytes.as_slice()].concat();
 
-        println!("{}", "Config ready");
+        //println!("{}", "Config ready");
 
         // Run NameServer
         let local_resolver_ip = "".to_string();
@@ -2114,7 +2114,7 @@ mod global_tests {
         client_stream.write(&full_msg);
         //
 
-        println!("{}", "Query sent");
+        //println!("{}", "Query sent");
 
         // Receive response TCP
         let mut response = [0; 512];
@@ -2256,7 +2256,7 @@ mod global_tests {
             UdpSocket::bind(CLIENT_IP_PORT.to_string()).expect("Failed to bind host socket");
         //
 
-        println!("{}", "Config ready");
+        //println!("{}", "Config ready");
 
         // Run NameServer
         let local_resolver_ip = RESOLVER_IP_PORT.to_string();
@@ -2295,9 +2295,9 @@ mod global_tests {
             .send_to(&query_msg.to_bytes(), ip_and_port_name_server)
             .expect("failed to send message");
 
-        println!("{}", "Query sent");
+        //println!("{}", "Query sent");
 
-        println!("Client socket: {:#?}", client_socket.local_addr());
+        //println!("Client socket: {:#?}", client_socket.local_addr());
 
         // Receive response UDP
         let mut response = [0; 512];
@@ -2332,7 +2332,7 @@ mod global_tests {
                 _ => unreachable!(),
             };
 
-            println!("{:#?}", ip_address.clone());
+            //println!("{:#?}", ip_address.clone());
 
             assert!(expected_ips.contains(&ip_address));
             //
@@ -2456,7 +2456,7 @@ mod global_tests {
 
         let full_msg = [&tcp_bytes_length, bytes.as_slice()].concat();
 
-        println!("{}", "Config ready");
+        //println!("{}", "Config ready");
 
         // Run NameServer
         let local_resolver_ip = RESOLVER_IP_PORT.to_string();
@@ -2497,7 +2497,7 @@ mod global_tests {
         client_stream.write(&full_msg);
         //
 
-        println!("{}", "Query sent");
+        //println!("{}", "Query sent");
 
         // Receive response TCP
         let mut response = [0; 512];

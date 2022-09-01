@@ -1,4 +1,5 @@
 use crate::dns_cache::DnsCache;
+use crate::message::rdata::txt_rdata::TxtRdata;
 use crate::message::rdata::Rdata;
 use crate::message::resource_record::ResourceRecord;
 use crate::message::DnsMessage;
@@ -42,11 +43,11 @@ pub struct ResolverQuery {
     old_id: u16,
     src_address: String,
     // Channel to share cache data between threads
-    add_channel_udp: Sender<(String, ResourceRecord, u8)>,
+    add_channel_udp: Sender<(String, ResourceRecord, u8, bool, bool, String)>,
     // Channel to share cache data between threads
     delete_channel_udp: Sender<(String, ResourceRecord)>,
     // Channel to share cache data between threads
-    add_channel_tcp: Sender<(String, ResourceRecord, u8)>,
+    add_channel_tcp: Sender<(String, ResourceRecord, u8, bool, bool, String)>,
     // Channel to share cache data between threads
     delete_channel_tcp: Sender<(String, ResourceRecord)>,
     // Channel to share cache data between name server and resolver
@@ -106,9 +107,9 @@ impl ResolverQuery {
     /// '''
     ///
     pub fn new(
-        add_channel_udp: Sender<(String, ResourceRecord, u8)>,
+        add_channel_udp: Sender<(String, ResourceRecord, u8, bool, bool, String)>,
         delete_channel_udp: Sender<(String, ResourceRecord)>,
-        add_channel_tcp: Sender<(String, ResourceRecord, u8)>,
+        add_channel_tcp: Sender<(String, ResourceRecord, u8, bool, bool, String)>,
         delete_channel_tcp: Sender<(String, ResourceRecord)>,
         add_channel_ns_udp: Sender<(String, ResourceRecord)>,
         delete_channel_ns_udp: Sender<(String, ResourceRecord)>,
@@ -232,8 +233,26 @@ impl ResolverQuery {
             // Gets a vector of NS RR for host_name
             let ns_parent_host_name = cache.get(parent_host_name.to_string(), ns_type.clone());
 
+            println!("{}", ns_parent_host_name.len());
+
+            // NXDOMAIN or NODATA
+            if ns_parent_host_name.len() > 0 {
+                let first_ns_cache = ns_parent_host_name[0].clone();
+
+                if first_ns_cache.get_nxdomain() == true || first_ns_cache.get_no_data() == true {
+                    println!(
+                        "nxdomain = {}, no_data = {}",
+                        first_ns_cache.get_nxdomain(),
+                        first_ns_cache.get_no_data()
+                    );
+                    // Creates a new slist from the parent domain
+                    labels.remove(0);
+                    continue;
+                }
+            }
+
             //DEBUG//
-            println!("Found {} NS records", ns_parent_host_name.len());
+            //println!("Found {} NS records", ns_parent_host_name.len());
             /////////
 
             // Variable to save ips found
@@ -292,7 +311,7 @@ impl ResolverQuery {
             }
 
             //DEBUG//
-            println!("Ip found: {}", ip_found);
+            //println!("Ip found: {}", ip_found);
             /////////
 
             // If there is no ip address in any NS RR
@@ -356,14 +375,25 @@ impl ResolverQuery {
             parent_host_name.pop();
 
             //DEBUG//
-            println!("Hostname in slist: {}", parent_host_name.clone());
+            //println!("Hostname in slist: {}", parent_host_name.clone());
             /////////
 
             // Gets a vector of NS RR for host_name
             let ns_parent_host_name = cache.get(parent_host_name.to_string(), ns_type.clone());
 
+            // NXDOMAIN or NODATA
+            if ns_parent_host_name.len() > 0 {
+                let first_ns_cache = ns_parent_host_name[0].clone();
+
+                if first_ns_cache.get_nxdomain() == true || first_ns_cache.get_no_data() == true {
+                    // Creates a new slist from the parent domain
+                    labels.remove(0);
+                    continue;
+                }
+            }
+
             //DEBUG//
-            println!("Found {} NS records", ns_parent_host_name.len());
+            //println!("Found {} NS records", ns_parent_host_name.len());
             /////////
 
             // Variable to save ips found
@@ -422,7 +452,7 @@ impl ResolverQuery {
             }
 
             //DEBUG//
-            println!("Ip found: {}", ip_found);
+            //println!("Ip found: {}", ip_found);
             /////////
 
             // If there is no ip address in any NS RR
@@ -460,8 +490,8 @@ impl ResolverQuery {
     }
 
     // Looks for local info in name server zone and cache
-    pub fn look_for_local_info(&mut self) -> Vec<ResourceRecord> {
-        println!("stype {}", self.get_stype());
+    pub fn look_for_local_info(&mut self) -> (Vec<ResourceRecord>, bool, bool) {
+        //println!("stype {}", self.get_stype());
         // Gets necessary info
         let s_type = match self.get_stype() {
             1 => "A".to_string(),
@@ -513,7 +543,7 @@ impl ResolverQuery {
                             rr.set_ttl(cmp::max(rr_ttl, soa_minimun_ttl));
                         }
 
-                        return rrs_by_type;
+                        return (rrs_by_type, false, false);
                     }
 
                     // Delete last dot
@@ -563,7 +593,7 @@ impl ResolverQuery {
 
             // If answers exist, return
             if all_answers.len() > 0 {
-                return all_answers;
+                return (all_answers, false, false);
             }
         }
         // Class is not *
@@ -595,7 +625,7 @@ impl ResolverQuery {
                         rr.set_ttl(cmp::max(rr_ttl, soa_minimun_ttl));
                     }
 
-                    return rrs_by_type;
+                    return (rrs_by_type, false, false);
                 }
 
                 // Delete last dot
@@ -637,7 +667,7 @@ impl ResolverQuery {
                         rr.set_ttl(cmp::max(rr_ttl, soa_minimun_ttl));
                     }
 
-                    return rrs_by_type;
+                    return (rrs_by_type, false, false);
                 }
             }
         }
@@ -645,16 +675,35 @@ impl ResolverQuery {
         // If there is no RR's in zone
         let mut rr_vec = Vec::<ResourceRecord>::new();
 
+        let mut nxdomain = false;
+        let mut no_data = false;
+
         // We look for RR's in cache
         if USE_CACHE == true {
             // Gets the cache
             let mut cache = self.get_cache();
 
-            // Gets RR's in cache
-            let cache_answer = cache.get(s_name.clone(), s_type);
             let mut rrs_cache_answer = Vec::new();
 
-            // Filters RR's by type
+            // Gets RR's in cache
+            let cache_answer = cache.get(s_name.clone(), s_type);
+
+            // NXDOMAIN or NODATA
+            if cache_answer.len() > 0 {
+                let first_cache = cache_answer[0].clone();
+
+                if first_cache.get_nxdomain() == true {
+                    println!("NXDOMAIN");
+                    nxdomain = true;
+
+                    rrs_cache_answer.push(first_cache.clone());
+                }
+                if first_cache.get_no_data() == true {
+                    no_data = true;
+                }
+            }
+
+            // Filters RR's by class
             if s_class != 255 {
                 for rr in cache_answer {
                     let rr_class = rr.get_resource_record().get_class();
@@ -671,6 +720,7 @@ impl ResolverQuery {
                 for answer in rrs_cache_answer.iter() {
                     let mut rr = answer.get_resource_record();
                     let rr_ttl = rr.get_ttl();
+                    println!("ttl -> {}", rr_ttl.clone());
                     let relative_ttl = rr_ttl - self.get_timestamp();
 
                     if relative_ttl > 0 {
@@ -686,7 +736,7 @@ impl ResolverQuery {
             }
         }
 
-        return rr_vec;
+        return (rr_vec, nxdomain, no_data);
     }
 }
 
@@ -716,31 +766,38 @@ impl ResolverQuery {
 
                             // Remove old cache
                             if remove_exist_cache == true {
-                                println!("Removiendo desde 4a: {}", an.get_name().get_name());
+                                //println!("Removiendo desde 4a: {}", an.get_name().get_name());
                                 self.remove_from_cache(an.get_name().get_name(), an.clone());
                                 remove_exist_cache = false;
                             }
 
                             // Add new Cache
-                            println!(
+                            /*println!(
                                 "Añadiendo desde 4a: {} - type: {}",
                                 an.get_name().get_name(),
                                 an.get_type_code()
+                            );*/
+                            self.add_to_cache(
+                                an.get_name().get_name(),
+                                an.clone(),
+                                3,
+                                false,
+                                false,
+                                "".to_string(),
                             );
-                            self.add_to_cache(an.get_name().get_name(), an.clone(), 3);
                         }
                     }
 
                     let mut last_domain_saved = "".to_string();
 
-                    println!("addtional size: {}", additional.len());
+                    //println!("addtional size: {}", additional.len());
 
                     for ad in additional.iter_mut() {
                         // We check if cache exist for the additionals
                         let (exist_in_cache, data_ranking) =
                             self.exist_cache_data(ad.get_name().get_name(), ad.clone());
 
-                        println!("Exist AD in cache: {}", exist_in_cache);
+                        //println!("Exist AD in cache: {}", exist_in_cache);
 
                         // If cache does not exist, we cache the data
                         if (exist_in_cache == false) {
@@ -748,29 +805,43 @@ impl ResolverQuery {
                                 ad.set_ttl(ad.get_ttl() + self.get_timestamp());
 
                                 // Cache
-                                println!("Añadiendo desde 4a: {}", ad.get_name().get_name());
-                                self.add_to_cache(ad.get_name().get_name(), ad.clone(), 6);
+                                //println!("Añadiendo desde 4a: {}", ad.get_name().get_name());
+                                self.add_to_cache(
+                                    ad.get_name().get_name(),
+                                    ad.clone(),
+                                    6,
+                                    false,
+                                    false,
+                                    "".to_string(),
+                                );
                                 last_domain_saved = ad.get_name().get_name();
                             }
                         } else {
-                            println!("Data ranking: {}", data_ranking);
+                            //println!("Data ranking: {}", data_ranking);
                             if (data_ranking >= 7) {
                                 if ad.get_ttl() > 0 {
                                     ad.set_ttl(ad.get_ttl() + self.get_timestamp());
 
                                     // Cache
                                     if (last_domain_saved != ad.get_name().get_name()) {
-                                        println!(
+                                        /*println!(
                                             "Removiendo IP desde 4a: {}",
                                             ad.get_name().get_name()
-                                        );
+                                        );*/
                                         self.remove_from_cache(
                                             ad.get_name().get_name(),
                                             ad.clone(),
                                         );
                                     }
-                                    println!("Añadiendo IP desde 4a: {}", ad.get_name().get_name());
-                                    self.add_to_cache(ad.get_name().get_name(), ad.clone(), 6);
+                                    //println!("Añadiendo IP desde 4a: {}", ad.get_name().get_name());
+                                    self.add_to_cache(
+                                        ad.get_name().get_name(),
+                                        ad.clone(),
+                                        6,
+                                        false,
+                                        false,
+                                        "".to_string(),
+                                    );
                                     last_domain_saved = ad.get_name().get_name();
                                 }
                             }
@@ -790,7 +861,14 @@ impl ResolverQuery {
                                 an.set_ttl(an.get_ttl() + self.get_timestamp());
 
                                 // Cache
-                                self.add_to_cache(an.get_name().get_name(), an.clone(), 6);
+                                self.add_to_cache(
+                                    an.get_name().get_name(),
+                                    an.clone(),
+                                    6,
+                                    false,
+                                    false,
+                                    "".to_string(),
+                                );
                             }
                         }
                     } else {
@@ -801,7 +879,14 @@ impl ResolverQuery {
 
                                     // Cache
                                     self.remove_from_cache(an.get_name().get_name(), an.clone());
-                                    self.add_to_cache(an.get_name().get_name(), an.clone(), 6);
+                                    self.add_to_cache(
+                                        an.get_name().get_name(),
+                                        an.clone(),
+                                        6,
+                                        false,
+                                        false,
+                                        "".to_string(),
+                                    );
                                 }
                             }
                         }
@@ -820,7 +905,14 @@ impl ResolverQuery {
                                 ad.set_ttl(ad.get_ttl() + self.get_timestamp());
 
                                 // Cache
-                                self.add_to_cache(ad.get_name().get_name(), ad.clone(), 6);
+                                self.add_to_cache(
+                                    ad.get_name().get_name(),
+                                    ad.clone(),
+                                    6,
+                                    false,
+                                    false,
+                                    "".to_string(),
+                                );
                                 last_domain_saved = ad.get_name().get_name();
                             }
                         } else {
@@ -835,12 +927,65 @@ impl ResolverQuery {
                                             ad.clone(),
                                         );
                                     }
-                                    self.add_to_cache(ad.get_name().get_name(), ad.clone(), 6);
+                                    self.add_to_cache(
+                                        ad.get_name().get_name(),
+                                        ad.clone(),
+                                        6,
+                                        false,
+                                        false,
+                                        "".to_string(),
+                                    );
                                     last_domain_saved = ad.get_name().get_name();
                                 }
                             }
                         }
                     }
+                }
+            }
+        } else {
+            let mut authority = msg.get_authority();
+
+            if authority.len() > 0 {
+                let mut first_authority = authority[0].clone();
+
+                if first_authority.get_type_code() == 6 {
+                    first_authority.set_ttl(first_authority.get_ttl() + self.get_timestamp());
+
+                    self.add_to_cache(
+                        first_authority.get_name().get_name(),
+                        first_authority.clone(),
+                        3,
+                        true,
+                        false,
+                        "NS".to_string(),
+                    );
+
+                    self.add_to_cache(
+                        first_authority.get_name().get_name(),
+                        first_authority.clone(),
+                        3,
+                        true,
+                        false,
+                        "A".to_string(),
+                    );
+
+                    self.add_to_cache(
+                        first_authority.get_name().get_name(),
+                        first_authority.clone(),
+                        3,
+                        true,
+                        false,
+                        "AAAA".to_string(),
+                    );
+
+                    self.add_to_cache(
+                        first_authority.get_name().get_name(),
+                        first_authority,
+                        3,
+                        true,
+                        false,
+                        "CNAME".to_string(),
+                    );
                 }
             }
         }
@@ -864,17 +1009,21 @@ impl ResolverQuery {
         socket: UdpSocket,
         rx_update_self_slist: Receiver<Slist>,
         use_cache_for_answering: bool,
-    ) -> Option<Vec<ResourceRecord>> {
-        let mut local_info = Vec::new();
+    ) -> Option<(Vec<ResourceRecord>, bool, bool)> {
+        let mut local_info = (Vec::new(), false, false);
 
         if use_cache_for_answering {
             // Gets local info
             local_info = self.look_for_local_info();
         }
 
+        let cache_info = local_info.0;
+        let nxdomain = local_info.1;
+        let no_data = local_info.2;
+
         // If local info exists, return those data
-        if local_info.len() > 0 {
-            return Some(local_info);
+        if (cache_info.len() > 0 || no_data == true) {
+            return Some((cache_info, nxdomain, no_data));
         }
         // In other case, we send a query to name servers
         else {
@@ -992,11 +1141,11 @@ impl ResolverQuery {
         let msg_to_bytes = query_msg.to_bytes();
 
         //DEBUG//
-        println!("Server to ask {}", best_server_ip);
-        println!(
+        //println!("Server to ask {}", best_server_ip);
+        /*println!(
             "Asking for: {}",
             query_msg.get_question().get_qname().get_name()
-        );
+        );*/
         /////////
 
         // Update the queries count before temporary error
@@ -1035,6 +1184,7 @@ impl ResolverQuery {
         // Gets answer and rcode
         let rcode = msg_from_response.get_header().get_rcode();
         let answer = msg_from_response.get_answer();
+        let aa = msg_from_response.get_header().get_aa();
 
         // Step 4a
         if (answer.len() > 0 && rcode == 0 && answer[0].get_type_code() == self.get_stype())
@@ -1048,7 +1198,7 @@ impl ResolverQuery {
         // Step 4b
         // If there is authority and it is NS type
         if (authority.len() > 0) && (authority[0].get_type_code() == 2) {
-            println!("Delegation response");
+            //println!("Delegation response");
             self.step_4b_udp(msg_from_response, socket, rx_update_self_slist);
             return None;
         }
@@ -1059,8 +1209,37 @@ impl ResolverQuery {
             && answer[0].get_type_code() == 5
             && answer[0].get_type_code() != self.get_stype()
         {
-            println!("Step 4C");
+            //println!("Step 4C");
             return self.step_4c_udp(msg_from_response, socket, rx_update_self_slist);
+        }
+
+        // No data answer
+        if answer.len() == 0 && rcode == 0 && aa == true {
+            let question_name = msg_from_response.get_question().get_qname().get_name();
+            let question_type = match msg_from_response.get_question().get_qtype() {
+                1 => "A".to_string(),
+                2 => "NS".to_string(),
+                5 => "CNAME".to_string(),
+                6 => "SOA".to_string(),
+                11 => "WKS".to_string(),
+                12 => "PTR".to_string(),
+                13 => "HINFO".to_string(),
+                14 => "MINFO".to_string(),
+                15 => "MX".to_string(),
+                16 => "TXT".to_string(),
+                //////////////////////// Replace the next line when AAAA is implemented /////////////////
+                28 => "TXT".to_string(),
+                /////////////////////////////////////////////////////////////////////////////////////////
+                _ => unreachable!(),
+            };
+
+            let txt_rdata = TxtRdata::new(Vec::new());
+            let empty_txt_rdata = Rdata::SomeTxtRdata(txt_rdata);
+            let empty_rr = ResourceRecord::new(empty_txt_rdata);
+
+            self.add_to_cache(question_name, empty_rr, 3, false, true, question_type);
+
+            return Some(msg_from_response);
         }
 
         // Finds the server that was asked
@@ -1068,7 +1247,7 @@ impl ResolverQuery {
 
         let mut index_to_choose = 0;
 
-        println!("SLIST len - {}", slist.len());
+        //println!("SLIST len - {}", slist.len());
 
         if self.get_index_to_choose() != 0 {
             index_to_choose = (self.get_index_to_choose() - 1) % slist.len() as u16;
@@ -1101,46 +1280,70 @@ impl ResolverQuery {
 
         // Adds NS and A RRs to cache if these can help
         let mut remove_exist_cache = true;
-        for ns in authority.iter_mut() {
-            if self.compare_match_count(ns.get_name().get_name()) {
-                ns.set_ttl(ns.get_ttl() + self.get_timestamp());
 
-                // Cache
-                // Remove old cache
-                if remove_exist_cache == true {
-                    self.remove_from_cache(ns.get_name().get_name(), ns.clone());
-                    remove_exist_cache = false;
-                }
+        // We check if cache exist for the ns
+        let (exist_in_cache, data_ranking) =
+            self.exist_cache_data(qname.clone(), authority[0].clone());
 
-                // Add new cache
-                self.add_to_cache(ns.get_name().get_name(), ns.clone(), 4);
-                println!("Agregando: {}", ns.get_name().get_name());
-                //
+        println!("Data ranking: {} - name: {}", data_ranking, qname.clone());
 
-                // Get the NS domain name
-                let ns_domain_name = match ns.get_rdata() {
-                    Rdata::SomeNsRdata(val) => val.get_nsdname().get_name(),
-                    _ => unreachable!(),
-                };
-                //
+        if (exist_in_cache == false || data_ranking > 4) {
+            println!("Se guarda");
+            for ns in authority.iter_mut() {
+                if self.compare_match_count(ns.get_name().get_name()) {
+                    ns.set_ttl(ns.get_ttl() + self.get_timestamp());
 
-                let mut remove_exist_cache_ip = true;
+                    // Cache
+                    // Remove old cache
+                    if remove_exist_cache == true {
+                        self.remove_from_cache(ns.get_name().get_name(), ns.clone());
+                        remove_exist_cache = false;
+                    }
 
-                // Adds and remove ip addresses
-                for ip in additional.iter_mut() {
-                    if ns_domain_name == ip.get_name().get_name() {
-                        ip.set_ttl(ip.get_ttl() + self.get_timestamp());
+                    // Add new cache
+                    self.add_to_cache(
+                        ns.get_name().get_name(),
+                        ns.clone(),
+                        4,
+                        false,
+                        false,
+                        "".to_string(),
+                    );
+                    //println!("Agregando: {}", ns.get_name().get_name());
+                    //
 
-                        // Remove old cache
-                        if remove_exist_cache_ip == true {
-                            self.remove_from_cache(ip.get_name().get_name(), ip.clone());
-                            remove_exist_cache_ip = false;
+                    // Get the NS domain name
+                    let ns_domain_name = match ns.get_rdata() {
+                        Rdata::SomeNsRdata(val) => val.get_nsdname().get_name(),
+                        _ => unreachable!(),
+                    };
+                    //
+
+                    let mut remove_exist_cache_ip = true;
+
+                    // Adds and remove ip addresses
+                    for ip in additional.iter_mut() {
+                        if ns_domain_name == ip.get_name().get_name() {
+                            ip.set_ttl(ip.get_ttl() + self.get_timestamp());
+
+                            // Remove old cache
+                            if remove_exist_cache_ip == true {
+                                self.remove_from_cache(ip.get_name().get_name(), ip.clone());
+                                remove_exist_cache_ip = false;
+                            }
+
+                            // Cache
+                            //println!("Mandando a agregar: {}", ip.get_name().get_name());
+                            self.add_to_cache(
+                                ip.get_name().get_name(),
+                                ip.clone(),
+                                5,
+                                false,
+                                false,
+                                "".to_string(),
+                            );
+                            //
                         }
-
-                        // Cache
-                        println!("Mandando a agregar: {}", ip.get_name().get_name());
-                        self.add_to_cache(ip.get_name().get_name(), ip.clone(), 5);
-                        //
                     }
                 }
             }
@@ -1175,7 +1378,14 @@ impl ResolverQuery {
 
         // Cache
         self.remove_from_cache(cname.get_name(), resource_record.clone());
-        self.add_to_cache(cname.get_name(), resource_record, 3);
+        self.add_to_cache(
+            cname.get_name(),
+            resource_record,
+            3,
+            false,
+            false,
+            "".to_string(),
+        );
         //
 
         // Check if contains the answer for cname
@@ -1215,22 +1425,71 @@ impl ResolverQuery {
         // Checks local info, and send the query if there is no local info
         match self.step_1_udp(socket, rx_update_self_slist, true) {
             Some(val) => {
-                println!("Local info!");
+                let cache_info = val.0;
+                let nxdomain = val.1;
+                let no_data = val.2;
 
-                msg.set_answer(val);
-                msg.set_authority(Vec::new());
-                msg.set_additional(Vec::new());
+                let mut query_msg = msg.clone();
 
-                let mut header = msg.get_header();
-                header.set_ancount(answers.len() as u16);
-                header.set_nscount(0);
-                header.set_arcount(0);
-                header.set_id(self.get_old_id());
-                header.set_qr(true);
+                if cache_info.len() > 0 && nxdomain == false {
+                    //DEBUG//
+                    //println!("Local info!");
+                    /////////
 
-                msg.set_header(header);
+                    // Sets the msg's info
+                    query_msg.set_answer(cache_info.clone());
+                    query_msg.set_authority(Vec::new());
+                    query_msg.set_additional(Vec::new());
 
-                return Some(msg);
+                    let mut header = query_msg.get_header();
+                    header.set_ancount(cache_info.len() as u16);
+                    header.set_nscount(0);
+                    header.set_arcount(0);
+                    header.set_id(self.get_old_id());
+                    header.set_qr(true);
+
+                    query_msg.set_header(header);
+
+                    return Some(query_msg);
+                }
+                if nxdomain == true {
+                    // Sets the msg's info
+                    query_msg.set_answer(Vec::new());
+                    query_msg.set_authority(cache_info.clone());
+                    query_msg.set_additional(Vec::new());
+
+                    let mut header = query_msg.get_header();
+                    header.set_ancount(0);
+                    header.set_nscount(cache_info.len() as u16);
+                    header.set_arcount(0);
+                    header.set_id(self.get_old_id());
+                    header.set_qr(true);
+                    header.set_rcode(3);
+
+                    query_msg.set_header(header);
+
+                    return Some(query_msg);
+                }
+
+                if no_data == true {
+                    // Sets the msg's info
+                    query_msg.set_answer(Vec::new());
+                    query_msg.set_authority(Vec::new());
+                    query_msg.set_additional(Vec::new());
+
+                    let mut header = query_msg.get_header();
+                    header.set_ancount(0);
+                    header.set_nscount(0);
+                    header.set_arcount(0);
+                    header.set_id(self.get_old_id());
+                    header.set_qr(true);
+
+                    query_msg.set_header(header);
+
+                    return Some(query_msg);
+                }
+
+                return Some(query_msg);
             }
             None => {
                 return None;
@@ -1290,7 +1549,7 @@ impl ResolverQuery {
     // Sends internal queries to obtain ip address for slist
     fn send_internal_queries_for_slist_udp(&self, slist: Slist, socket: UdpSocket) {
         //DEBUG//
-        println!("Entro a send_internal_queries");
+        //println!("Entro a send_internal_queries");
         /////////
 
         // Gets NS from slist
@@ -1308,7 +1567,7 @@ impl ResolverQuery {
                 // If there is no ip address, we send a query to obtain it
                 if ip_addr == "".to_string() {
                     //DEBUG//
-                    println!("Internal Query para {}", qname.clone());
+                    //println!("Internal Query para {}", qname.clone());
                     /////////
 
                     // Necessary info to create a ResolverQuery instance
@@ -1478,25 +1737,62 @@ impl ResolverQuery {
         update_slist_tcp_recv: Receiver<(String, Vec<ResourceRecord>)>,
         use_cache_for_answering: bool,
     ) -> DnsMessage {
-        let mut local_info = Vec::new();
+        let mut local_info = (Vec::new(), false, false);
 
         if use_cache_for_answering {
             // Gets local info
-            let local_info = self.look_for_local_info();
+            local_info = self.look_for_local_info();
         }
 
-        if local_info.len() > 0 {
+        let cache_info = local_info.0;
+        let nxdomain = local_info.1;
+        let no_data = local_info.2;
+
+        if cache_info.len() > 0 && nxdomain == false {
             //DEBUG//
-            println!("Local info!");
+            //println!("Local info!");
             /////////
 
             // Sets the msg's info
-            query_msg.set_answer(local_info.clone());
+            query_msg.set_answer(cache_info.clone());
             query_msg.set_authority(Vec::new());
             query_msg.set_additional(Vec::new());
 
             let mut header = query_msg.get_header();
-            header.set_ancount(local_info.len() as u16);
+            header.set_ancount(cache_info.len() as u16);
+            header.set_nscount(0);
+            header.set_arcount(0);
+            header.set_id(self.get_old_id());
+            header.set_qr(true);
+
+            query_msg.set_header(header);
+
+            return query_msg;
+        } else if nxdomain == true {
+            // Sets the msg's info
+            query_msg.set_answer(Vec::new());
+            query_msg.set_authority(cache_info.clone());
+            query_msg.set_additional(Vec::new());
+
+            let mut header = query_msg.get_header();
+            header.set_ancount(0);
+            header.set_nscount(cache_info.len() as u16);
+            header.set_arcount(0);
+            header.set_id(self.get_old_id());
+            header.set_qr(true);
+            header.set_rcode(3);
+
+            query_msg.set_header(header);
+
+            return query_msg;
+        } else if no_data == true {
+            // Sets the msg's info
+            query_msg.set_answer(Vec::new());
+            query_msg.set_authority(Vec::new());
+            query_msg.set_additional(Vec::new());
+
+            let mut header = query_msg.get_header();
+            header.set_ancount(0);
             header.set_nscount(0);
             header.set_arcount(0);
             header.set_id(self.get_old_id());
@@ -1524,7 +1820,7 @@ impl ResolverQuery {
         slist.sort();
 
         //DEBUG//
-        println!("Slist intia len: {}", slist.len());
+        //println!("Slist intia len: {}", slist.len());
         /////////
 
         // Sets the slist
@@ -1650,7 +1946,7 @@ impl ResolverQuery {
         let query_msg = self.create_query_message();
         let msg_to_bytes = query_msg.to_bytes();
 
-        println!("Server to ask {}", best_server_ip);
+        //println!("Server to ask {}", best_server_ip);
 
         // Update the queries count before temporary error
         self.set_queries_before_temporary_error(queries_left - 1);
@@ -1680,6 +1976,7 @@ impl ResolverQuery {
         // Gets the answer and rcode
         let rcode = msg_from_response.get_header().get_rcode();
         let answer = msg_from_response.get_answer();
+        let aa = msg_from_response.get_header().get_aa();
 
         // Step 4a
         if (answer.len() > 0 && rcode == 0 && answer[0].get_type_code() == self.get_stype())
@@ -1706,6 +2003,35 @@ impl ResolverQuery {
             return self.step_4c_tcp(msg_from_response, update_slist_tcp_recv);
         }
 
+        // No data answer
+        if answer.len() == 0 && rcode == 0 && aa == true {
+            let question_name = msg_from_response.get_question().get_qname().get_name();
+            let question_type = match msg_from_response.get_question().get_qtype() {
+                1 => "A".to_string(),
+                2 => "NS".to_string(),
+                5 => "CNAME".to_string(),
+                6 => "SOA".to_string(),
+                11 => "WKS".to_string(),
+                12 => "PTR".to_string(),
+                13 => "HINFO".to_string(),
+                14 => "MINFO".to_string(),
+                15 => "MX".to_string(),
+                16 => "TXT".to_string(),
+                //////////////////////// Replace the next line when AAAA is implemented /////////////////
+                28 => "TXT".to_string(),
+                /////////////////////////////////////////////////////////////////////////////////////////
+                _ => unreachable!(),
+            };
+
+            let txt_rdata = TxtRdata::new(Vec::new());
+            let empty_txt_rdata = Rdata::SomeTxtRdata(txt_rdata);
+            let empty_rr = ResourceRecord::new(empty_txt_rdata);
+
+            self.add_to_cache(question_name, empty_rr, 3, false, true, question_type);
+
+            return msg_from_response;
+        }
+
         // Gets the last used slist record
         let slist = self.get_slist();
         let last_index_to_choose = (self.get_index_to_choose() - 1) % slist.len() as u16;
@@ -1725,46 +2051,69 @@ impl ResolverQuery {
         let mut authority = msg.get_authority();
         let mut additional = msg.get_additional();
 
+        // We check if cache exist for the ns
+        let (exist_in_cache, data_ranking) = self.exist_cache_data(
+            msg.get_question().get_qname().get_name(),
+            authority[0].clone(),
+        );
+
         let mut remove_exist_cache = true;
-        // Adds NS and A RRs to cache if these can help
-        for ns in authority.iter_mut() {
-            if self.compare_match_count(ns.get_name().get_name()) {
-                ns.set_ttl(ns.get_ttl() + self.get_timestamp());
 
-                // Cache
-                // Remove old cache
-                if remove_exist_cache == true {
-                    self.remove_from_cache(ns.get_name().get_name(), ns.clone());
-                    remove_exist_cache = false;
-                }
+        if (exist_in_cache == false || data_ranking > 4) {
+            // Adds NS and A RRs to cache if these can help
+            for ns in authority.iter_mut() {
+                if self.compare_match_count(ns.get_name().get_name()) {
+                    ns.set_ttl(ns.get_ttl() + self.get_timestamp());
 
-                // Add new cache
-                self.add_to_cache(ns.get_name().get_name(), ns.clone(), 4);
+                    // Cache
+                    // Remove old cache
+                    if remove_exist_cache == true {
+                        self.remove_from_cache(ns.get_name().get_name(), ns.clone());
+                        remove_exist_cache = false;
+                    }
 
-                //
+                    // Add new cache
+                    self.add_to_cache(
+                        ns.get_name().get_name(),
+                        ns.clone(),
+                        4,
+                        false,
+                        false,
+                        "".to_string(),
+                    );
 
-                // Get the NS domain name
-                let ns_domain_name = match ns.get_rdata() {
-                    Rdata::SomeNsRdata(val) => val.get_nsdname().get_name(),
-                    _ => unreachable!(),
-                };
-                //
+                    //
 
-                let mut remove_exist_cache_ip = true;
+                    // Get the NS domain name
+                    let ns_domain_name = match ns.get_rdata() {
+                        Rdata::SomeNsRdata(val) => val.get_nsdname().get_name(),
+                        _ => unreachable!(),
+                    };
+                    //
 
-                // Removes and adds the ip addresses
-                for ip in additional.iter_mut() {
-                    if ns_domain_name == ip.get_name().get_name() {
-                        ip.set_ttl(ip.get_ttl() + self.get_timestamp());
+                    let mut remove_exist_cache_ip = true;
 
-                        // Remove old cache
-                        if remove_exist_cache_ip == true {
-                            self.remove_from_cache(ip.get_name().get_name(), ip.clone());
-                            remove_exist_cache_ip = false;
+                    // Removes and adds the ip addresses
+                    for ip in additional.iter_mut() {
+                        if ns_domain_name == ip.get_name().get_name() {
+                            ip.set_ttl(ip.get_ttl() + self.get_timestamp());
+
+                            // Remove old cache
+                            if remove_exist_cache_ip == true {
+                                self.remove_from_cache(ip.get_name().get_name(), ip.clone());
+                                remove_exist_cache_ip = false;
+                            }
+
+                            // Cache
+                            self.add_to_cache(
+                                ip.get_name().get_name(),
+                                ip.clone(),
+                                7,
+                                false,
+                                false,
+                                "".to_string(),
+                            );
                         }
-
-                        // Cache
-                        self.add_to_cache(ip.get_name().get_name(), ip.clone(), 7);
                     }
                 }
             }
@@ -1796,7 +2145,14 @@ impl ResolverQuery {
 
         // Cache
         self.remove_from_cache(cname.get_name(), resource_record.clone());
-        self.add_to_cache(cname.get_name(), resource_record, 3);
+        self.add_to_cache(
+            cname.get_name(),
+            resource_record,
+            3,
+            false,
+            false,
+            "".to_string(),
+        );
 
         // Updates sname in query
         self.set_sname(cname.get_name());
@@ -1942,12 +2298,15 @@ impl ResolverQuery {
         domain_name: String,
         resource_record: ResourceRecord,
         data_ranking: u8,
+        nxdomain: bool,
+        no_data: bool,
+        rr_type: String,
     ) {
         // DEBUG//
-        println!(
+        /*println!(
             "-------------- Adding to cache: {} ------------------------",
             domain_name.clone()
-        );
+        );*/
         /////////
 
         // Gets the cache
@@ -1955,10 +2314,24 @@ impl ResolverQuery {
 
         // Sends info to update cache
         self.get_add_channel_udp()
-            .send((domain_name.clone(), resource_record.clone(), data_ranking))
+            .send((
+                domain_name.clone(),
+                resource_record.clone(),
+                data_ranking,
+                nxdomain,
+                no_data,
+                rr_type.clone(),
+            ))
             .unwrap_or(());
         self.get_add_channel_tcp()
-            .send((domain_name.clone(), resource_record.clone(), data_ranking))
+            .send((
+                domain_name.clone(),
+                resource_record.clone(),
+                data_ranking,
+                nxdomain,
+                no_data,
+                rr_type.clone(),
+            ))
             .unwrap_or(());
         self.get_add_channel_ns_udp()
             .send((domain_name.clone(), resource_record.clone()))
@@ -1968,7 +2341,14 @@ impl ResolverQuery {
             .unwrap_or(());
 
         // Adds to cache
-        cache.add(domain_name, resource_record, data_ranking);
+        cache.add(
+            domain_name,
+            resource_record,
+            data_ranking,
+            nxdomain,
+            no_data,
+            rr_type,
+        );
 
         // Sets the cache
         self.set_cache(cache);
@@ -1988,11 +2368,9 @@ impl ResolverQuery {
             .send((domain_name.clone(), resource_record.clone()))
             .unwrap();
         self.get_delete_channel_ns_udp()
-            .send((domain_name.clone(), resource_record.clone()))
-            .unwrap();
+            .send((domain_name.clone(), resource_record.clone()));
         self.get_delete_channel_ns_tcp()
-            .send((domain_name.clone(), resource_record.clone()))
-            .unwrap();
+            .send((domain_name.clone(), resource_record.clone()));
 
         // Removes the element
         cache.remove(domain_name, rr_type);
@@ -2135,12 +2513,12 @@ impl ResolverQuery {
     }
 
     /// Get the owner's query address
-    pub fn get_add_channel_udp(&self) -> Sender<(String, ResourceRecord, u8)> {
+    pub fn get_add_channel_udp(&self) -> Sender<(String, ResourceRecord, u8, bool, bool, String)> {
         self.add_channel_udp.clone()
     }
 
     /// Get the owner's query address
-    pub fn get_add_channel_tcp(&self) -> Sender<(String, ResourceRecord, u8)> {
+    pub fn get_add_channel_tcp(&self) -> Sender<(String, ResourceRecord, u8, bool, bool, String)> {
         self.add_channel_tcp.clone()
     }
 

@@ -42,7 +42,7 @@ pub fn response_time_experiment(filename: String) {
         let mut i = 0;
 
         while i < 10 {
-            println!("Iteración: {}", i);
+            //println!("Iteración: {}", i);
 
             // Sleep
 
@@ -109,7 +109,7 @@ pub fn response_time_experiment(filename: String) {
 
             thread::sleep(ten_millis);
 
-            let (response_time, _) = client::run_client(line.clone(), 1, 1);
+            let (response_time, _, _) = client::run_client(line.clone(), 1, 1);
 
             // Sending Udp msg to kill resolver
             let socket = UdpSocket::bind("192.168.1.90:58402").expect("couldn't bind to address");
@@ -142,7 +142,7 @@ pub fn response_time_experiment(filename: String) {
     // Iterate results.
     for (domain, result_vec) in &response_times {
         for time in result_vec {
-            println!("Guardando: {} -- {}", domain, time);
+            //println!("Guardando: {} -- {}", domain, time);
             let mut new_line = String::new();
             new_line.push_str(domain.as_str());
             new_line.push_str(" ");
@@ -314,7 +314,7 @@ pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>) {
 
         thread::sleep(ten_millis);
 
-        let (response_time_first, _) = client::run_client(FIRST_QUERY.clone(), 1, 1);
+        let (response_time_first, _, _) = client::run_client(FIRST_QUERY.clone(), 1, 1);
 
         // Case 5 is case 3 for new algorithm
         if case == 5 {
@@ -376,7 +376,7 @@ pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>) {
 
         thread::sleep(ten_millis);
 
-        let (response_time_second, _) = client::run_client(SECOND_QUERY.clone(), 1, 1);
+        let (response_time_second, _, _) = client::run_client(SECOND_QUERY.clone(), 1, 1);
 
         // Sending Udp msg to kill resolver
         let socket = UdpSocket::bind("192.168.1.90:58402").expect("couldn't bind to address");
@@ -428,7 +428,7 @@ pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>) {
     // Iterate results.
     for (domain, result_vec) in &response_times {
         for time in result_vec {
-            println!("Guardando: {} -- {}", domain, time);
+            //println!("Guardando: {} -- {}", domain, time);
             let mut new_line = String::new();
             new_line.push_str(domain.as_str());
             new_line.push_str(" ");
@@ -586,28 +586,114 @@ pub fn get_ns_records_from_child_zone(domains_file: String, save_file: String) {
         domain_name.pop();
 
         // Get NS records
-        let (_, ns_records) = client::run_client(domain_name.clone(), 1, 2);
+        let (_, ns_records, temporary_error) = client::run_client(domain_name.clone(), 1, 2);
 
-        // Open the file to append
-        let mut file = OpenOptions::new()
-            .write(true)
-            .append(true)
-            .open(save_file.clone())
-            .unwrap();
+        if !temporary_error {
+            // Open the file to append
+            let mut file = OpenOptions::new()
+                .write(true)
+                .append(true)
+                .open(save_file.clone())
+                .unwrap();
 
-        if first_line {
-            // Write domain
-            write!(file, "{}", domain_name.clone());
+            if first_line {
+                // Write domain
+                write!(file, "{}", domain_name.clone());
 
-            first_line = false;
+                first_line = false;
+            } else {
+                // Write domain
+                write!(file, "\n{}", domain_name.clone());
+            }
+
+            for ns in ns_records {
+                println!("NS - {}", ns.clone());
+                // Write ns records
+                write!(file, " {}", ns.to_string());
+            }
         } else {
-            // Write domain
-            write!(file, "\n{}", domain_name.clone());
-        }
+            // Open the file to append
+            let mut file = OpenOptions::new()
+                .write(true)
+                .append(true)
+                .open("ns_temporary_error.txt".clone())
+                .unwrap();
 
-        for ns in ns_records {
-            // Write ns records
-            write!(file, " {}", ns.to_string());
+            write!(file, "{}\n", domain_name.clone());
+
+            // Sending Udp msg to kill child name server
+            let socket = UdpSocket::bind("192.168.1.90:58402").expect("couldn't bind to address");
+            socket
+                .send_to(&[1; 50], RESOLVER_IP_PORT)
+                .expect("couldn't send data");
+
+            // Sending TCP msg to kill child name server
+            let mut stream =
+                TcpStream::connect(RESOLVER_IP_PORT).expect("couldn't connect to address");
+
+            stream.write(&[1; 50]);
+
+            // Sleep
+            let ten_millis = Duration::from_millis(1000);
+
+            thread::sleep(ten_millis);
+
+            // Run resolver
+            // Channels
+            let (add_sender_udp, add_recv_udp) = mpsc::channel();
+            let (delete_sender_udp, delete_recv_udp) = mpsc::channel();
+            let (add_sender_tcp, add_recv_tcp) = mpsc::channel();
+            let (delete_sender_tcp, delete_recv_tcp) = mpsc::channel();
+            let (add_sender_ns_udp, add_recv_ns_udp) = mpsc::channel();
+            let (delete_sender_ns_udp, delete_recv_ns_udp) = mpsc::channel();
+            let (add_sender_ns_tcp, add_recv_ns_tcp) = mpsc::channel();
+            let (delete_sender_ns_tcp, delete_recv_ns_tcp) = mpsc::channel();
+            let (update_cache_sender_udp, rx_update_cache_udp) = mpsc::channel();
+            let (update_cache_sender_tcp, rx_update_cache_tcp) = mpsc::channel();
+            let (update_cache_sender_ns_udp, rx_update_cache_ns_udp) = mpsc::channel();
+            let (update_cache_sender_ns_tcp, rx_update_cache_ns_tcp) = mpsc::channel();
+
+            let mut resolver = Resolver::new(
+                add_sender_udp.clone(),
+                delete_sender_udp.clone(),
+                add_sender_tcp.clone(),
+                delete_sender_tcp.clone(),
+                add_sender_ns_udp.clone(),
+                delete_sender_ns_udp.clone(),
+                add_sender_ns_tcp.clone(),
+                delete_sender_ns_tcp.clone(),
+                update_cache_sender_udp.clone(),
+                update_cache_sender_tcp.clone(),
+                update_cache_sender_ns_udp.clone(),
+                update_cache_sender_ns_tcp.clone(),
+            );
+
+            resolver.set_ip_address(RESOLVER_IP_PORT.to_string());
+
+            let mut sbelt = Slist::new();
+
+            for ip in SBELT_ROOT_IPS {
+                sbelt.insert(".".to_string(), ip.to_string(), 5000);
+            }
+
+            resolver.set_sbelt(sbelt);
+
+            thread::spawn(move || {
+                resolver.run_resolver(
+                    add_recv_udp,
+                    delete_recv_udp,
+                    add_recv_tcp,
+                    delete_recv_tcp,
+                    rx_update_cache_udp,
+                    rx_update_cache_tcp,
+                    true,
+                );
+            });
+
+            // Sleep
+            let ten_millis = Duration::from_millis(1000);
+
+            thread::sleep(ten_millis);
         }
     }
 }
@@ -635,8 +721,8 @@ pub fn compare_parent_and_child_ns_records(
     let mut len_child_line = child_reader.read_line(&mut child_line).unwrap();
 
     while len_parent_line != 0 && len_child_line != 0 {
-        println!("Linea padre: {}", parent_line);
-        println!("Linea hijo: {}", child_line);
+        //println!("Linea padre: {}", parent_line);
+        //println!("Linea hijo: {}", child_line);
 
         // Split lines
         let mut parent_elements: Vec<String> =
@@ -665,7 +751,7 @@ pub fn compare_parent_and_child_ns_records(
         let child_ns_len = ns_records_from_child.len();
 
         if parent_ns_len != child_ns_len {
-            println!("Distinta cantidad de ns");
+            //println!("Distinta cantidad de ns");
             // Open the file to append
             let mut file = OpenOptions::new()
                 .write(true)
@@ -781,10 +867,10 @@ pub fn find_affected_domains_experiment(
         let domain_name = elements[0].clone();
 
         // Query to get NS records from parent zone
-        let (response_time_first, _) = client::run_client(domain_name.clone(), 1, 1);
+        let (response_time_first, _, _) = client::run_client(domain_name.clone(), 1, 1);
 
         // Second query to test the missconfigured domain
-        let (response_time_second, _) = client::run_client(domain_name.clone(), 1, 1);
+        let (response_time_second, _, _) = client::run_client(domain_name.clone(), 1, 1);
 
         // Open the file to append
         let mut file = OpenOptions::new()

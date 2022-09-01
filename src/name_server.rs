@@ -147,12 +147,12 @@ impl NameServer {
         let socket = UdpSocket::bind(&name_server_ip_address).expect("Failed to bind host socket");
 
         // DEBUG //
-        println!("{}", "Socket Created");
+        //println!("{}", "Socket Created");
         ///////////
 
         loop {
             //DEBUG//
-            println!("{}", "Waiting msg");
+            //println!("{}", "Waiting msg");
             /////////
 
             // We receive the msg
@@ -162,7 +162,7 @@ impl NameServer {
             // Creates an empty msg and address
             let (mut dns_message, mut src_address) = (DnsMessage::new(), "".to_string());
 
-            println!("{}", "Message recv");
+            //println!("{}", "Message recv");
 
             // Check if it is all the message
             match dns_message_option {
@@ -224,7 +224,7 @@ impl NameServer {
 
             while next_value.is_none() == false {
                 let (name, rr) = next_value.unwrap();
-                cache.add(name, rr, 7);
+                cache.add(name, rr, 7, false, false, "".to_string());
                 next_value = received_add.next();
             }
 
@@ -322,14 +322,13 @@ impl NameServer {
                         response_dns_msg.set_header(header);
 
                         //DEBUG//
-                        println!(
+                        /*println!(
                             "Response answer len: {}",
                             response_dns_msg.get_answer().len()
-                        );
+                        );*/
                         ////////
                         ///
-
-                        println!("Header AA: {}", response_dns_msg.get_header().get_aa());
+                        //println!("Header AA: {}", response_dns_msg.get_header().get_aa());
 
                         // Sends the answer to the client (or resolver)
                         NameServer::send_response_by_udp(
@@ -346,7 +345,7 @@ impl NameServer {
                 let new_id = dns_message.get_query_id();
 
                 //DEBUG//
-                println!("Pasa por respuesta");
+                //println!("Pasa por respuesta");
                 /////////
 
                 // Checks query id
@@ -356,7 +355,7 @@ impl NameServer {
                         let val_copy = val.clone();
 
                         //DEBUG//
-                        println!("Encuentra la id en las queries id");
+                        //println!("Encuentra la id en las queries id");
                         /////////
 
                         // Sets headers
@@ -375,7 +374,7 @@ impl NameServer {
                     // Query id does not match
                     None => {
                         //DEBUG//
-                        println!("No encuentra la id en las queries id");
+                        //println!("No encuentra la id en las queries id");
                         /////////
                     }
                 }
@@ -401,24 +400,24 @@ impl NameServer {
         let listener = TcpListener::bind(&name_server_ip_address).expect("Could not bind");
 
         //DEBUG//
-        println!("{}", "TcpListener Created");
+        //println!("{}", "TcpListener Created");
         /////////
 
         loop {
-            println!("{}", "Waiting msg");
+            //println!("{}", "Waiting msg");
 
             // Accepts the connection
             match listener.accept() {
                 Ok((mut stream, src_address)) => {
                     //DEBUG//
-                    println!("New connection: {}", stream.peer_addr().unwrap());
+                    //println!("New connection: {}", stream.peer_addr().unwrap());
                     /////////
 
                     // We receive the msg
                     let mut received_msg =
                         Resolver::receive_tcp_msg(stream.try_clone().unwrap()).unwrap();
 
-                    println!("{}", "Message recv");
+                    //println!("{}", "Message recv");
 
                     // Delete from cache
 
@@ -472,7 +471,7 @@ impl NameServer {
 
                     while next_value.is_none() == false {
                         let (name, rr) = next_value.unwrap();
-                        cache.add(name, rr, 7);
+                        cache.add(name, rr, 7, false, false, "".to_string());
                         next_value = received_add.next();
                     }
 
@@ -502,7 +501,7 @@ impl NameServer {
 
                     let mut dns_message = dns_message_parse_result.unwrap();
 
-                    println!("{}", "Message parsed");
+                    //println!("{}", "Message parsed");
 
                     // If the msg is a query
                     if dns_message.get_header().get_qr() == false {
@@ -619,7 +618,7 @@ impl NameServer {
         }
         //
 
-        println!("Encontró zona por clase");
+        //println!("Encontró zona por clase");
 
         let zones_by_class = zones_by_class_option.unwrap();
 
@@ -629,7 +628,7 @@ impl NameServer {
             None => (NSZone::new(), false),
         };
 
-        println!("Available: {}", available);
+        //println!("Available: {}", available);
 
         // If we found a zone
         if zone.get_name() != "" && zone.get_active() == true {
@@ -639,12 +638,12 @@ impl NameServer {
         else {
             let dot_position = qname.find(".").unwrap_or(0);
 
-            println!("qname: {}", qname);
-            println!("dot position: {}", dot_position);
+            //println!("qname: {}", qname);
+            //println!("dot position: {}", dot_position);
 
             if dot_position > 0 {
                 qname.replace_range(..dot_position + 1, "");
-                println!("new qname: {}", qname);
+                //println!("new qname: {}", qname);
                 return NameServer::search_nearest_ancestor_zone(zones, qname, qclass);
             } else {
                 return (zone, available);
@@ -667,7 +666,7 @@ impl NameServer {
         let mut qname_without_zone_label = qname.replace(&zone.get_name(), "");
         let mut zone = zone.clone();
 
-        println!("Qname sin label: {}", qname_without_zone_label.clone());
+        //println!("Qname sin label: {}", qname_without_zone_label.clone());
 
         // We were looking for the first node
         if qname_without_zone_label == "".to_string() {
@@ -695,7 +694,7 @@ impl NameServer {
             let exist_child = zone.exist_child(label.to_string());
 
             //DEBUG//
-            println!("Existe child: {}", exist_child.clone());
+            //println!("Existe child: {}", exist_child.clone());
             /////////
 
             // If a child exists
@@ -812,7 +811,7 @@ impl NameServer {
             );
 
             //DEBUG//
-            println!("Ancestor zone for {}: {}", qname.clone(), available.clone());
+            //println!("Ancestor zone for {}: {}", qname.clone(), available.clone());
             /////////
 
             if available == true {
@@ -858,7 +857,7 @@ impl NameServer {
         let qclass = msg.get_question().get_qclass();
         let mut rrs_by_type = zone.get_rrs_by_type(qtype);
 
-        println!("RRS len: {}", rrs_by_type.len());
+        //println!("RRS len: {}", rrs_by_type.len());
 
         if rrs_by_type.len() > 0 {
             // Set the ttl from SOA RR
@@ -883,7 +882,7 @@ impl NameServer {
             }
             //
 
-            println!("rrs by type len: {}", rrs_by_type.len());
+            //println!("rrs by type len: {}", rrs_by_type.len());
 
             msg.set_answer(rrs_by_type);
 
@@ -896,7 +895,7 @@ impl NameServer {
         } else {
             let rr = zone.get_value()[0].clone();
             if rr.get_type_code() == 5 && qtype != 5 {
-                println!("CNAME!!!");
+                //println!("CNAME!!!");
 
                 rrs_by_type.push(rr.clone());
                 msg.set_answer(rrs_by_type);
@@ -911,7 +910,7 @@ impl NameServer {
                     _ => unreachable!(),
                 };
 
-                println!("Cname name: {}", canonical_name.get_name());
+                //println!("Cname name: {}", canonical_name.get_name());
 
                 let mut question = msg.get_question();
 
@@ -966,12 +965,12 @@ impl NameServer {
                     additional.push(rr.get_resource_record());
                 }
             } else {
-                println!("Ns name: {}", name_ns.clone());
+                //println!("Ns name: {}", name_ns.clone());
 
                 match name_ns.find(&zone.get_name()) {
                     Some(index) => {
                         let new_ns_name = name_ns[..index - 1].to_string();
-                        println!("new ns name: {}", new_ns_name);
+                        //println!("new ns name: {}", new_ns_name);
 
                         let labels: Vec<&str> = new_ns_name.split(".").collect();
                         let mut a_glue_rrs = Vec::<ResourceRecord>::new();
@@ -981,7 +980,7 @@ impl NameServer {
                         for label in labels {
                             let exist_child = glue_zone.exist_child(label.to_string());
 
-                            println!("Exist child glue: {}", exist_child);
+                            //println!("Exist child glue: {}", exist_child);
 
                             if exist_child == true {
                                 glue_zone = glue_zone.get_child(label.to_string()).0;
@@ -996,7 +995,7 @@ impl NameServer {
                         // Gets the glue rrs for the ns rr
                         a_glue_rrs = NameServer::look_for_type_records(name_ns, glue_rrs, 1);
 
-                        println!("GLue found: {}", a_glue_rrs.len());
+                        //println!("GLue found: {}", a_glue_rrs.len());
 
                         additional.append(&mut a_glue_rrs);
                     }
@@ -1136,7 +1135,7 @@ impl NameServer {
 
         // Adds additional records
         if msg.get_authority().len() > 0 {
-            println!("Hay authority");
+            //println!("Hay authority");
             return NameServer::step_6(msg, cache, zones);
         } else {
             let mut authority = Vec::<ResourceRecord>::new();
@@ -1210,13 +1209,13 @@ impl NameServer {
                 }
                 // Adds additional for NS data
                 2 => {
-                    println!("Entro a buscar las ips glue");
+                    //println!("Entro a buscar las ips glue");
                     let name_ns = match answer.get_rdata() {
                         Rdata::SomeNsRdata(val) => val.get_nsdname().get_name(),
                         _ => unreachable!(),
                     };
 
-                    println!("Name a buscar: {}", name_ns.clone());
+                    //println!("Name a buscar: {}", name_ns.clone());
 
                     let (zone, _available) = NameServer::search_nearest_ancestor_zone(
                         zones.clone(),
@@ -1231,7 +1230,7 @@ impl NameServer {
                     for label in labels {
                         let exist_child = last_zone.exist_child(label.to_string());
 
-                        println!("Exist child glue: {}", exist_child);
+                        //println!("Exist child glue: {}", exist_child);
 
                         if exist_child == true {
                             last_zone = last_zone.get_child(label.to_string()).0;
@@ -1240,7 +1239,7 @@ impl NameServer {
                         }
                     }
 
-                    println!("es subzona: {}", last_zone.get_subzone());
+                    //println!("es subzona: {}", last_zone.get_subzone());
 
                     if last_zone.get_subzone() == true {
                         let glue_rrs = last_zone.get_glue_rrs();
@@ -1271,8 +1270,8 @@ impl NameServer {
 
         msg.set_additional(additional);
 
-        println!("Authority size: {}", msg.get_authority().len());
-        println!("Additional size: {}", msg.get_additional().len());
+        //println!("Authority size: {}", msg.get_authority().len());
+        //println!("Additional size: {}", msg.get_additional().len());
 
         return msg;
     }
@@ -1311,11 +1310,11 @@ impl NameServer {
 
         // Msg size < 512
         if bytes.len() <= 512 {
-            println!(
+            /*println!(
                 "Enviando mensaje de respuesta: {}, largo: {}",
                 src_address.clone(),
                 bytes.len()
-            );
+            )*/
 
             socket
                 .send_to(&bytes, src_address)

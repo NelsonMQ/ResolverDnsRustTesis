@@ -41,7 +41,7 @@ impl NSZone {
 
         for (name, rrs_vec) in &rrs {
             for rr in rrs_vec {
-                println!("{} {}", name, rr.get_string_type());
+                //println!("{} {}", name, rr.get_string_type());
             }
         }
 
@@ -54,7 +54,7 @@ impl NSZone {
         ns_zone.set_class_str(master_file_parsed.get_class_default());
 
         for (key, value) in rrs.iter() {
-            println!("{} - {}", key.clone(), value.len());
+            //println!("{} - {}", key.clone(), value.len());
             ns_zone.add_node(key.clone(), value.clone());
         }
 
@@ -107,7 +107,7 @@ impl NSZone {
         let children = self.get_children();
 
         for child in children {
-            println!("Child name: {}", child.get_name());
+            //println!("Child name: {}", child.get_name());
             if child.get_name() == name {
                 return true;
             }
@@ -177,7 +177,7 @@ impl NSZone {
                 let mut new_ns_zone = NSZone::new();
                 new_ns_zone.set_name(label.to_string());
 
-                println!("RRs len: {}", rrs.len());
+                //println!("RRs len: {}", rrs.len());
 
                 if labels.len() == 0 {
                     new_ns_zone.set_value(rrs.clone());
@@ -223,11 +223,11 @@ impl NSZone {
         let values = self.get_value();
         let children = self.get_children();
 
-        println!("Name: {}", name);
-        println!("Subzone: {}", self.get_subzone());
+        //println!("Name: {}", name);
+        //println!("Subzone: {}", self.get_subzone());
 
         for val in values {
-            println!("  Type: {}", val.get_type_code());
+            //println!("  Type: {}", val.get_type_code());
         }
 
         for child in children {
@@ -244,14 +244,14 @@ impl NSZone {
 
         let mut rr_by_type = Vec::<ResourceRecord>::new();
 
-        println!("RRs len zone: {}", rrs.len());
+        //println!("RRs len zone: {}", rrs.len());
 
         for rr in rrs {
             if rr.get_type_code() == rr_type {
-                println!(
+                /*println!(
                     "----------------------rr name: {}",
                     rr.get_name().get_name()
-                );
+                );*/
 
                 rr_by_type.push(rr);
             }

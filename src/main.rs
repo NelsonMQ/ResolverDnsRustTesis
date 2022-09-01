@@ -24,7 +24,7 @@ use crate::config::SBELT_ROOT_IPS;
 pub fn main() {
     // Users input
     let mut input_line = String::new();
-    println!("Enter program to run [C/R/N/TRE/MCC1/MCC2/MCC3/MCC4/MCCZ1/MCCZ2/MCCZ3/MCD]\n - C: Dns client \n - R: Dns resolver \n - N: Dns Name Server \n - TRE: Time Response Experiment \n - MCCX: MissConfigured Case X \n - MCCZX: MissConfigured Zone Experiment number X \n - MCD: MissConfigured Domains Experiment");
+    //println!("Enter program to run [C/R/N/TRE/MCC1/MCC2/MCC3/MCC4/MCCZ1/MCCZ2/MCCZ3/MCD]\n - C: Dns client \n - R: Dns resolver \n - N: Dns Name Server \n - TRE: Time Response Experiment \n - MCCX: MissConfigured Case X \n - MCCZX: MissConfigured Zone Experiment number X \n - MCD: MissConfigured Domains Experiment");
     std::io::stdin().read_line(&mut input_line).unwrap();
 
     let trim_input_line = input_line.trim();
@@ -32,19 +32,19 @@ pub fn main() {
     if trim_input_line == "C" {
         // Users input
         let mut input_line = String::new();
-        println!("Enter domain: ");
+        //println!("Enter domain: ");
         std::io::stdin().read_line(&mut input_line).unwrap();
 
         let host_name = input_line.trim();
 
         let mut input_line = String::new();
-        println!("Enter qtype (u16): ");
+        //println!("Enter qtype (u16): ");
         std::io::stdin().read_line(&mut input_line).unwrap();
 
         let qtype = input_line.trim().parse::<u16>().unwrap();
 
         let mut input_line = String::new();
-        println!("Enter qclass (u16): ");
+        //println!("Enter qclass (u16): ");
         std::io::stdin().read_line(&mut input_line).unwrap();
 
         let qclass = input_line.trim().parse::<u16>().unwrap();
@@ -52,7 +52,7 @@ pub fn main() {
         client::run_client(host_name.to_string(), qclass, qtype);
     } else if trim_input_line == "TRE" {
         let mut input_line = String::new();
-        println!("Enter file with websites domains: ");
+        //println!("Enter file with websites domains: ");
         std::io::stdin().read_line(&mut input_line).unwrap();
 
         let file_name_experiment = input_line.trim();
@@ -164,7 +164,7 @@ pub fn main() {
             );
         } else if trim_input_line == "N" {
             let mut input_line = String::new();
-            println!("Enter Ip and port: ");
+            //println!("Enter Ip and port: ");
             std::io::stdin().read_line(&mut input_line).unwrap();
 
             let trim_input_line = input_line.trim();
@@ -180,7 +180,7 @@ pub fn main() {
             );
 
             let mut input_line = String::new();
-            println!("Insert MasterFile name: ");
+            //println!("Insert MasterFile name: ");
             std::io::stdin().read_line(&mut input_line).unwrap();
 
             let master_file = input_line.trim();

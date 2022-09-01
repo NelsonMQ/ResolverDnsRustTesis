@@ -34,10 +34,7 @@ impl DomainName {
         let mut name = String::from("");
         let mut index = 0;
 
-        println!("bytes len: {}", bytes.len());
-
         for byte in bytes {
-            println!("byte: {}", byte);
             if *byte <= 9 && *byte >= 1 {
                 name.push('.');
             } else if *byte == 0 {
@@ -61,15 +58,9 @@ impl DomainName {
         let mut domain_name_str = "".to_string();
         let mut no_domain_bytes = bytes.clone();
 
-        println!("first byte: {}", first_byte);
-        println!("bytes: {:#?}", bytes);
-
         while first_byte != 0 {
-            println!("first byte: {}", first_byte);
             let bytes_len = no_domain_bytes.len();
             let msg_compresion = first_byte.clone() >> 6;
-
-            println!("msg compression: {}", msg_compresion);
 
             if msg_compresion == 3 {
                 if bytes_len < 2 {
@@ -110,8 +101,6 @@ impl DomainName {
                 // Checks label restrictions
                 let check_label = NSZone::check_label_name(label_string.clone());
 
-                println!("check label: {}", check_label);
-
                 /*
                 if check_label == false {
                     return Err("Format Error");
@@ -121,16 +110,14 @@ impl DomainName {
                 domain_name_str.push_str(&label_string);
                 domain_name_str.push_str(".");
 
-                println!("domain name: {}", domain_name_str.clone());
+                //println!("domain name: {}", domain_name_str.clone());
                 no_domain_bytes = &no_domain_bytes[(first_byte + 1) as usize..];
 
                 first_byte = no_domain_bytes[0].clone();
-
-                println!("first byte: {}", first_byte);
             }
         }
 
-        println!("Domain name: {}", domain_name_str);
+        //println!("Domain name: {}", domain_name_str);
 
         if first_byte == 0 {
             no_domain_bytes = &no_domain_bytes[1..];

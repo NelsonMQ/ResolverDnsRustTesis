@@ -12,6 +12,8 @@ pub struct RRCache {
     last_use: DateTime<Utc>,
     // Data ranking from RFC 2181
     data_ranking: u8,
+    nxdomain: bool,
+    no_data: bool,
 }
 
 impl RRCache {
@@ -25,12 +27,19 @@ impl RRCache {
     /// assert_eq!(rr_cache.response_time, 5);
     /// '''
     ///
-    pub fn new(resource_record: ResourceRecord, data_ranking: u8) -> Self {
+    pub fn new(
+        resource_record: ResourceRecord,
+        data_ranking: u8,
+        nxdomain: bool,
+        no_data: bool,
+    ) -> Self {
         let rr_cache = RRCache {
             resource_record: resource_record,
             response_time: 5000,
             last_use: Utc::now(),
             data_ranking: data_ranking,
+            nxdomain: nxdomain,
+            no_data: no_data,
         };
 
         rr_cache
@@ -58,6 +67,16 @@ impl RRCache {
     pub fn get_data_ranking(&self) -> u8 {
         self.data_ranking
     }
+
+    // Gets nxdomain field
+    pub fn get_nxdomain(&self) -> bool {
+        self.nxdomain
+    }
+
+    // Gets no_data field
+    pub fn get_no_data(&self) -> bool {
+        self.no_data
+    }
 }
 
 // Setters
@@ -80,6 +99,16 @@ impl RRCache {
     // Sets the data ranking attribute with new value
     pub fn set_data_ranking(&mut self, data_ranking: u8) {
         self.data_ranking = data_ranking;
+    }
+
+    // Sets nxdomain attribute
+    pub fn set_nxdomain(&mut self, nxdomain: bool) {
+        self.nxdomain = nxdomain;
+    }
+
+    // Sets no_data attribute
+    pub fn set_no_data(&mut self, no_data: bool) {
+        self.no_data = no_data;
     }
 }
 
