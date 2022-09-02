@@ -152,6 +152,52 @@ impl DnsCache {
         return Vec::<RRCache>::new();
     }
 
+    // Checks if exist NXDOMAIN in subdomains or parent domains
+    pub fn check_nxdomain_cache(
+        &mut self,
+        domain_name: String,
+        rr_type: String,
+    ) -> (bool, Vec<RRCache>) {
+        let host_name = domain_name.clone();
+        let mut labels: Vec<&str> = host_name.split('.').collect();
+
+        // While there are labels
+        while labels.len() > 0 {
+            // Sets parent host name
+            let mut parent_host_name = "".to_string();
+
+            for label in labels.iter() {
+                parent_host_name.push_str(label);
+                parent_host_name.push_str(".");
+            }
+
+            // Deletes last dot
+            parent_host_name.pop();
+
+            // Gets a vector of NS RR for host_name
+            let ns_parent_host_name = self.get(parent_host_name.to_string(), rr_type.clone());
+
+            // NXDOMAIN or NODATA
+            if ns_parent_host_name.len() > 0 {
+                let first_ns_cache = ns_parent_host_name[0].clone();
+
+                if first_ns_cache.get_nxdomain() == true {
+                    println!(
+                        "nxdomain = {}, no_data = {}",
+                        first_ns_cache.get_nxdomain(),
+                        first_ns_cache.get_no_data()
+                    );
+
+                    return (true, ns_parent_host_name);
+                }
+            }
+
+            labels.remove(0);
+        }
+
+        return (false, Vec::new());
+    }
+
     /// Removes the resource records from a domain name and type which were the oldest used
     pub fn remove_oldest_used(&mut self) {
         let cache = self.get_cache();

@@ -685,8 +685,18 @@ impl ResolverQuery {
 
             let mut rrs_cache_answer = Vec::new();
 
-            // Gets RR's in cache
-            let cache_answer = cache.get(s_name.clone(), s_type);
+            let mut cache_answer = Vec::new();
+
+            //Check if exist nxdomain for domain_name and its subdomains
+            let (nxdomain_subdomain_and_parent_domains, answer) =
+                cache.check_nxdomain_cache(s_name.clone(), s_type.clone());
+
+            if nxdomain_subdomain_and_parent_domains == true {
+                cache_answer = answer.clone();
+            } else {
+                // Gets RR's in cache
+                cache_answer = cache.get(s_name.clone(), s_type.clone());
+            }
 
             // NXDOMAIN or NODATA
             if cache_answer.len() > 0 {
