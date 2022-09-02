@@ -21,7 +21,7 @@ use std::thread;
 use std::time::Duration;
 
 /// Execute the response time experiment
-pub fn response_time_experiment(filename: String) {
+pub fn response_time_experiment(filename: String, new_algorithm: bool) {
     // Hash to save response times
     let mut response_times = HashMap::<String, Vec<u128>>::new();
 
@@ -78,6 +78,7 @@ pub fn response_time_experiment(filename: String) {
                 update_cache_sender_tcp.clone(),
                 update_cache_sender_ns_udp.clone(),
                 update_cache_sender_ns_tcp.clone(),
+                new_algorithm,
             );
 
             resolver.set_ip_address(RESOLVER_IP_PORT.to_string());
@@ -161,7 +162,7 @@ pub fn response_time_experiment(filename: String) {
 }
 
 // Tests the missconfigured cases
-pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>) {
+pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>, new_algorithm: bool) {
     let ROOT_IP_PORT = "192.168.1.90:58398";
     let CHILD_IP_PORT = "192.168.1.90:58399";
     let ROOT_MASTER_FILE = master_files_names[0].clone();
@@ -252,6 +253,47 @@ pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>) {
     });
 
     for i in 0..5 {
+        if new_algorithm {
+            if i > 0 {
+                /// Child name server
+                // Channels
+                let (delete_sender_udp, delete_recv_udp) = mpsc::channel();
+                let (delete_sender_tcp, delete_recv_tcp) = mpsc::channel();
+                let (add_sender_ns_udp, add_recv_ns_udp) = mpsc::channel();
+                let (delete_sender_ns_udp, delete_recv_ns_udp) = mpsc::channel();
+                let (add_sender_ns_tcp, add_recv_ns_tcp) = mpsc::channel();
+                let (delete_sender_ns_tcp, delete_recv_ns_tcp) = mpsc::channel();
+                let (update_cache_sender_ns_udp, rx_update_cache_ns_udp) = mpsc::channel();
+                let (update_cache_sender_ns_tcp, rx_update_cache_ns_tcp) = mpsc::channel();
+
+                let mut name_server = NameServer::new(
+                    false,
+                    delete_sender_udp.clone(),
+                    delete_sender_tcp.clone(),
+                    add_sender_ns_udp.clone(),
+                    delete_sender_ns_udp.clone(),
+                    add_sender_ns_tcp.clone(),
+                    delete_sender_ns_tcp.clone(),
+                );
+
+                name_server
+                    .add_zone_from_master_file(CHILD_MASTER_FILE.to_string(), "".to_string());
+
+                thread::spawn(move || {
+                    name_server.run_name_server(
+                        CHILD_IP_PORT.to_string(),
+                        RESOLVER_IP_PORT.to_string(),
+                        add_recv_ns_udp,
+                        delete_recv_ns_udp,
+                        add_recv_ns_tcp,
+                        delete_recv_ns_tcp,
+                        rx_update_cache_ns_udp,
+                        rx_update_cache_ns_tcp,
+                    );
+                });
+            }
+        }
+
         // Sleep
         let ten_millis = Duration::from_millis(1000);
 
@@ -285,6 +327,7 @@ pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>) {
             update_cache_sender_tcp.clone(),
             update_cache_sender_ns_udp.clone(),
             update_cache_sender_ns_tcp.clone(),
+            new_algorithm,
         );
 
         resolver.set_ip_address(RESOLVER_IP_PORT.to_string());
@@ -318,6 +361,8 @@ pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>) {
 
         // Case 5 is case 3 for new algorithm
         if case == 5 {
+            thread::sleep(ten_millis);
+
             // Sending Udp msg to kill child name server
             let socket = UdpSocket::bind("192.168.1.90:58402").expect("couldn't bind to address");
             socket
@@ -372,7 +417,7 @@ pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>) {
             });
         }
         // Sleep
-        let ten_millis = Duration::from_millis(1000);
+        let ten_millis = Duration::from_millis(2000);
 
         thread::sleep(ten_millis);
 
@@ -390,6 +435,17 @@ pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>) {
 
         stream.write(&[1; 50]);
 
+        // Sending Udp msg to kill child name server
+        let socket = UdpSocket::bind("192.168.1.90:58403").expect("couldn't bind to address");
+        socket
+            .send_to(&[1; 50], CHILD_IP_PORT)
+            .expect("couldn't send data");
+
+        // Sending TCP msg to kill child name server
+        let mut stream = TcpStream::connect(CHILD_IP_PORT).expect("couldn't connect to address");
+
+        stream.write(&[1; 50]);
+
         // Save response time
 
         let mut times_vec = response_times.get(&FIRST_QUERY).unwrap().clone();
@@ -401,17 +457,6 @@ pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>) {
         response_times.insert(SECOND_QUERY.clone(), times_vec.to_vec());
     }
 
-    // Sending Udp msg to kill child name server
-    let socket = UdpSocket::bind("192.168.1.90:58402").expect("couldn't bind to address");
-    socket
-        .send_to(&[1; 50], CHILD_IP_PORT)
-        .expect("couldn't send data");
-
-    // Sending TCP msg to kill child name server
-    let mut stream = TcpStream::connect(CHILD_IP_PORT).expect("couldn't connect to address");
-
-    stream.write(&[1; 50]);
-
     // Sleep
     let ten_millis = Duration::from_millis(1000);
 
@@ -420,6 +465,11 @@ pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>) {
     // Add the results to a new file
     let mut new_file_name = "missconfigured_case_".to_string();
     new_file_name.push_str(case.to_string().as_str());
+
+    if new_algorithm {
+        new_file_name.push_str("_na_");
+    }
+
     new_file_name.push_str("_results.txt");
 
     // Creates file
@@ -541,6 +591,7 @@ pub fn get_ns_records_from_child_zone(domains_file: String, save_file: String) {
         update_cache_sender_tcp.clone(),
         update_cache_sender_ns_udp.clone(),
         update_cache_sender_ns_tcp.clone(),
+        false,
     );
 
     resolver.set_ip_address(RESOLVER_IP_PORT.to_string());
@@ -666,6 +717,7 @@ pub fn get_ns_records_from_child_zone(domains_file: String, save_file: String) {
                 update_cache_sender_tcp.clone(),
                 update_cache_sender_ns_udp.clone(),
                 update_cache_sender_ns_tcp.clone(),
+                false,
             );
 
             resolver.set_ip_address(RESOLVER_IP_PORT.to_string());
@@ -798,6 +850,7 @@ pub fn compare_parent_and_child_ns_records(
 pub fn find_affected_domains_experiment(
     input_domains_file: String,
     output_affected_domains_file: String,
+    new_algorithm: bool,
 ) {
     // Run the resolver (the resolver should not save cache)
     // Channels
@@ -827,6 +880,7 @@ pub fn find_affected_domains_experiment(
         update_cache_sender_tcp.clone(),
         update_cache_sender_ns_udp.clone(),
         update_cache_sender_ns_tcp.clone(),
+        new_algorithm,
     );
 
     resolver.set_ip_address(RESOLVER_IP_PORT.to_string());
@@ -868,6 +922,13 @@ pub fn find_affected_domains_experiment(
 
         // Query to get NS records from parent zone
         let (response_time_first, _, _) = client::run_client(domain_name.clone(), 1, 1);
+
+        if new_algorithm {
+            // Sleep
+            let ten_millis = Duration::from_millis(2000);
+
+            thread::sleep(ten_millis);
+        }
 
         // Second query to test the missconfigured domain
         let (response_time_second, _, _) = client::run_client(domain_name.clone(), 1, 1);

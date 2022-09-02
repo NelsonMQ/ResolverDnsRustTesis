@@ -41,19 +41,19 @@ pub struct Resolver {
     // Channel to share cache data between threads
     add_sender_udp: Sender<(String, ResourceRecord, u8, bool, bool, String)>,
     // Channel to share cache data between threads
-    delete_sender_udp: Sender<(String, ResourceRecord)>,
+    delete_sender_udp: Sender<(String, String)>,
     // Channel to share cache data between threads
     add_sender_tcp: Sender<(String, ResourceRecord, u8, bool, bool, String)>,
     // Channel to share cache data between threads
-    delete_sender_tcp: Sender<(String, ResourceRecord)>,
+    delete_sender_tcp: Sender<(String, String)>,
     // Channel to share cache data between name server and resolver
     add_sender_ns_udp: Sender<(String, ResourceRecord)>,
     // Channel to delete cache data in name server and resolver
-    delete_sender_ns_udp: Sender<(String, ResourceRecord)>,
+    delete_sender_ns_udp: Sender<(String, String)>,
     // Channel to share cache data between name server and resolver
     add_sender_ns_tcp: Sender<(String, ResourceRecord)>,
     // Channel to delete cache data in name server and resolver
-    delete_sender_ns_tcp: Sender<(String, ResourceRecord)>,
+    delete_sender_ns_tcp: Sender<(String, String)>,
     // Channel to update response time in cache data in name server and resolver
     update_cache_sender_udp: Sender<(String, String, u32)>,
     // Channel to update response time in cache data in name server and resolver
@@ -62,23 +62,26 @@ pub struct Resolver {
     update_cache_sender_ns_udp: Sender<(String, String, u32)>,
     // Channel to update response time in cache data in name server and resolver
     update_cache_sender_ns_tcp: Sender<(String, String, u32)>,
+    // Algorithm to use
+    new_algorithm: bool,
 }
 
 impl Resolver {
     /// Creates a new Resolver with default values
     pub fn new(
         add_sender_udp: Sender<(String, ResourceRecord, u8, bool, bool, String)>,
-        delete_sender_udp: Sender<(String, ResourceRecord)>,
+        delete_sender_udp: Sender<(String, String)>,
         add_sender_tcp: Sender<(String, ResourceRecord, u8, bool, bool, String)>,
-        delete_sender_tcp: Sender<(String, ResourceRecord)>,
+        delete_sender_tcp: Sender<(String, String)>,
         add_sender_ns_udp: Sender<(String, ResourceRecord)>,
-        delete_sender_ns_udp: Sender<(String, ResourceRecord)>,
+        delete_sender_ns_udp: Sender<(String, String)>,
         add_sender_ns_tcp: Sender<(String, ResourceRecord)>,
-        delete_sender_ns_tcp: Sender<(String, ResourceRecord)>,
+        delete_sender_ns_tcp: Sender<(String, String)>,
         update_cache_sender_udp: Sender<(String, String, u32)>,
         update_cache_sender_tcp: Sender<(String, String, u32)>,
         update_cache_sender_ns_udp: Sender<(String, String, u32)>,
         update_cache_sender_ns_tcp: Sender<(String, String, u32)>,
+        new_algorithm: bool,
     ) -> Self {
         // Creates a new cache
         let mut cache = DnsCache::new();
@@ -101,6 +104,7 @@ impl Resolver {
             update_cache_sender_tcp: update_cache_sender_tcp,
             update_cache_sender_ns_udp: update_cache_sender_ns_udp,
             update_cache_sender_ns_tcp: update_cache_sender_ns_tcp,
+            new_algorithm: new_algorithm,
         };
 
         resolver
@@ -110,9 +114,9 @@ impl Resolver {
     pub fn run_resolver(
         &mut self,
         rx_add_udp: Receiver<(String, ResourceRecord, u8, bool, bool, String)>,
-        rx_delete_udp: Receiver<(String, ResourceRecord)>,
+        rx_delete_udp: Receiver<(String, String)>,
         rx_add_tcp: Receiver<(String, ResourceRecord, u8, bool, bool, String)>,
-        rx_delete_tcp: Receiver<(String, ResourceRecord)>,
+        rx_delete_tcp: Receiver<(String, String)>,
         rx_update_cache_udp: Receiver<(String, String, u32)>,
         rx_update_cache_tcp: Receiver<(String, String, u32)>,
         use_cache_for_answering: bool,
@@ -143,7 +147,7 @@ impl Resolver {
     pub fn run_resolver_udp(
         &mut self,
         rx_add_udp: Receiver<(String, ResourceRecord, u8, bool, bool, String)>,
-        rx_delete_udp: Receiver<(String, ResourceRecord)>,
+        rx_delete_udp: Receiver<(String, String)>,
         rx_update_cache_udp: Receiver<(String, String, u32)>,
         use_cache_for_answering: bool,
     ) {
@@ -239,8 +243,7 @@ impl Resolver {
             let mut cache = self.get_cache();
 
             while next_value.is_none() == false {
-                let (name, rr) = next_value.unwrap();
-                let rr_type = rr.get_string_type();
+                let (name, rr_type) = next_value.unwrap();
                 cache.remove(name, rr_type);
                 next_value = received_delete.next();
             }
@@ -430,6 +433,7 @@ impl Resolver {
                     tx_update_cache_ns_tcp_copy.clone(),
                     tx_update_slist_tcp,
                     tx_update_self_slist,
+                    self.new_algorithm,
                 );
 
                 // Initializes the query data struct
@@ -664,7 +668,8 @@ impl Resolver {
                                     // The responde was from an internal query
                                     let mut msg = val.clone();
                                     let answers = msg.get_answer();
-                                    let host_name = answers[0].clone().get_name().get_name();
+                                    //let host_name = answers[0].clone().get_name().get_name();
+                                    let host_name = msg.get_question().get_qname().get_name();
                                     let resolver_query_id_to_update =
                                         resolver_query.get_query_id_update_slist();
 
@@ -742,7 +747,9 @@ impl Resolver {
                                             tx_query_update_clone.send(resolver_query_to_update);
                                             tx_query_delete_clone.send(resolver_query.clone());
                                         }
-                                        None => {}
+                                        None => {
+                                            tx_query_delete_clone.send(resolver_query.clone());
+                                        }
                                     }
                                 }
                             }
@@ -759,7 +766,7 @@ impl Resolver {
     pub fn run_resolver_tcp(
         &mut self,
         rx_add_tcp: Receiver<(String, ResourceRecord, u8, bool, bool, String)>,
-        rx_delete_tcp: Receiver<(String, ResourceRecord)>,
+        rx_delete_tcp: Receiver<(String, String)>,
         rx_update_cache_tcp: Receiver<(String, String, u32)>,
         use_cache_for_answering: bool,
     ) {
@@ -809,8 +816,7 @@ impl Resolver {
                     let mut cache = self.get_cache();
 
                     while next_value.is_none() == false {
-                        let (name, rr) = next_value.unwrap();
-                        let rr_type = rr.get_string_type();
+                        let (name, rr_type) = next_value.unwrap();
                         cache.remove(name, rr_type);
                         next_value = received_delete.next();
                     }
@@ -912,6 +918,8 @@ impl Resolver {
                         }
                     }
 
+                    let new_algorithm = self.new_algorithm;
+
                     // Creates a new thread to process the msg
                     thread::spawn(move || {
                         let dns_message = dns_message_parse_result.unwrap();
@@ -953,6 +961,7 @@ impl Resolver {
                                 tx_update_cache_ns_tcp_copy,
                                 tx_update_slist_tcp,
                                 tx_update_self_slist,
+                                new_algorithm,
                             );
 
                             // Initializes the query data struct
@@ -1116,6 +1125,8 @@ impl Resolver {
         let mut tcp_msg_len = (received_msg[0] as u16) << 8 | received_msg[1] as u16;
         let mut vec_msg: Vec<u8> = Vec::new();
 
+        tcp_msg_len = tcp_msg_len - number_of_bytes as u16 + 2;
+
         // Receive all the msg
         while tcp_msg_len > 0 {
             let mut msg = [0; 512];
@@ -1230,12 +1241,12 @@ impl Resolver {
     }
 
     /// Get the owner's query address
-    pub fn get_delete_sender_udp(&self) -> Sender<(String, ResourceRecord)> {
+    pub fn get_delete_sender_udp(&self) -> Sender<(String, String)> {
         self.delete_sender_udp.clone()
     }
 
     /// Get the owner's query address
-    pub fn get_delete_sender_tcp(&self) -> Sender<(String, ResourceRecord)> {
+    pub fn get_delete_sender_tcp(&self) -> Sender<(String, String)> {
         self.delete_sender_tcp.clone()
     }
 
@@ -1250,12 +1261,12 @@ impl Resolver {
     }
 
     /// Get the owner's query address
-    pub fn get_delete_sender_ns_udp(&self) -> Sender<(String, ResourceRecord)> {
+    pub fn get_delete_sender_ns_udp(&self) -> Sender<(String, String)> {
         self.delete_sender_ns_udp.clone()
     }
 
     /// Get the owner's query address
-    pub fn get_delete_sender_ns_tcp(&self) -> Sender<(String, ResourceRecord)> {
+    pub fn get_delete_sender_ns_tcp(&self) -> Sender<(String, String)> {
         self.delete_sender_ns_tcp.clone()
     }
 

@@ -45,19 +45,19 @@ pub struct ResolverQuery {
     // Channel to share cache data between threads
     add_channel_udp: Sender<(String, ResourceRecord, u8, bool, bool, String)>,
     // Channel to share cache data between threads
-    delete_channel_udp: Sender<(String, ResourceRecord)>,
+    delete_channel_udp: Sender<(String, String)>,
     // Channel to share cache data between threads
     add_channel_tcp: Sender<(String, ResourceRecord, u8, bool, bool, String)>,
     // Channel to share cache data between threads
-    delete_channel_tcp: Sender<(String, ResourceRecord)>,
+    delete_channel_tcp: Sender<(String, String)>,
     // Channel to share cache data between name server and resolver
     add_channel_ns_udp: Sender<(String, ResourceRecord)>,
     // Channel to delete cache data in name server and resolver
-    delete_channel_ns_udp: Sender<(String, ResourceRecord)>,
+    delete_channel_ns_udp: Sender<(String, String)>,
     // Channel to share cache data between name server and resolver
     add_channel_ns_tcp: Sender<(String, ResourceRecord)>,
     // Channel to delete cache data in name server and resolver
-    delete_channel_ns_tcp: Sender<(String, ResourceRecord)>,
+    delete_channel_ns_tcp: Sender<(String, String)>,
     // Channel to update response time in cache data in name server and resolver
     update_cache_sender_udp: Sender<(String, String, u32)>,
     // Channel to update response time in cache data in name server and resolver
@@ -90,6 +90,8 @@ pub struct ResolverQuery {
     update_slist_tcp_sender: Sender<(String, Vec<ResourceRecord>)>,
     // Channel to update slist inside a resolver query
     tx_update_self_slist: Sender<Slist>,
+    // New algorithm
+    new_algorithm: bool,
 }
 
 impl ResolverQuery {
@@ -108,13 +110,13 @@ impl ResolverQuery {
     ///
     pub fn new(
         add_channel_udp: Sender<(String, ResourceRecord, u8, bool, bool, String)>,
-        delete_channel_udp: Sender<(String, ResourceRecord)>,
+        delete_channel_udp: Sender<(String, String)>,
         add_channel_tcp: Sender<(String, ResourceRecord, u8, bool, bool, String)>,
-        delete_channel_tcp: Sender<(String, ResourceRecord)>,
+        delete_channel_tcp: Sender<(String, String)>,
         add_channel_ns_udp: Sender<(String, ResourceRecord)>,
-        delete_channel_ns_udp: Sender<(String, ResourceRecord)>,
+        delete_channel_ns_udp: Sender<(String, String)>,
         add_channel_ns_tcp: Sender<(String, ResourceRecord)>,
-        delete_channel_ns_tcp: Sender<(String, ResourceRecord)>,
+        delete_channel_ns_tcp: Sender<(String, String)>,
         tx_update_query: Sender<ResolverQuery>,
         tx_delete_query: Sender<ResolverQuery>,
         client_msg: DnsMessage,
@@ -124,6 +126,7 @@ impl ResolverQuery {
         update_cache_sender_ns_tcp: Sender<(String, String, u32)>,
         update_slist_tcp_sender: Sender<(String, Vec<ResourceRecord>)>,
         tx_update_self_slist: Sender<Slist>,
+        new_algorithm: bool,
     ) -> Self {
         let mut rng = thread_rng();
         let now = Utc::now();
@@ -158,7 +161,7 @@ impl ResolverQuery {
             client_msg: client_msg,
             index_to_choose: 0,
             last_query_timestamp: now.timestamp() as u64 * 1000,
-            timeout: 5000,
+            timeout: 2000,
             last_query_hostname: "".to_string(),
             update_cache_sender_udp: update_cache_sender_udp,
             update_cache_sender_tcp: update_cache_sender_tcp,
@@ -168,6 +171,7 @@ impl ResolverQuery {
             query_id_update_slist: 0,
             update_slist_tcp_sender: update_slist_tcp_sender,
             tx_update_self_slist: tx_update_self_slist,
+            new_algorithm: new_algorithm,
         };
 
         query
@@ -741,7 +745,10 @@ impl ResolverQuery {
 
                 // Deletes RR's with relative TTL < 0
                 if rr_vec.len() < rrs_cache_answer.len() {
-                    self.remove_from_cache(s_name, rrs_cache_answer[0].get_resource_record());
+                    self.remove_from_cache(
+                        s_name,
+                        rrs_cache_answer[0].get_resource_record().get_string_type(),
+                    );
                 }
             }
         }
@@ -777,7 +784,10 @@ impl ResolverQuery {
                             // Remove old cache
                             if remove_exist_cache == true {
                                 //println!("Removiendo desde 4a: {}", an.get_name().get_name());
-                                self.remove_from_cache(an.get_name().get_name(), an.clone());
+                                self.remove_from_cache(
+                                    an.get_name().get_name(),
+                                    an.clone().get_string_type(),
+                                );
                                 remove_exist_cache = false;
                             }
 
@@ -840,7 +850,7 @@ impl ResolverQuery {
                                         );*/
                                         self.remove_from_cache(
                                             ad.get_name().get_name(),
-                                            ad.clone(),
+                                            ad.clone().get_string_type(),
                                         );
                                     }
                                     //println!("Añadiendo IP desde 4a: {}", ad.get_name().get_name());
@@ -888,7 +898,10 @@ impl ResolverQuery {
                                     an.set_ttl(an.get_ttl() + self.get_timestamp());
 
                                     // Cache
-                                    self.remove_from_cache(an.get_name().get_name(), an.clone());
+                                    self.remove_from_cache(
+                                        an.get_name().get_name(),
+                                        an.clone().get_string_type(),
+                                    );
                                     self.add_to_cache(
                                         an.get_name().get_name(),
                                         an.clone(),
@@ -934,7 +947,7 @@ impl ResolverQuery {
                                     if (last_domain_saved != ad.get_name().get_name()) {
                                         self.remove_from_cache(
                                             ad.get_name().get_name(),
-                                            ad.clone(),
+                                            ad.clone().get_string_type(),
                                         );
                                     }
                                     self.add_to_cache(
@@ -960,6 +973,31 @@ impl ResolverQuery {
 
                 if first_authority.get_type_code() == 6 {
                     first_authority.set_ttl(first_authority.get_ttl() + self.get_timestamp());
+
+                    self.remove_from_cache(
+                        msg.get_question().get_qname().get_name(),
+                        "NS".to_string(),
+                    );
+                    self.remove_from_cache(
+                        msg.get_question().get_qname().get_name(),
+                        "A".to_string(),
+                    );
+                    self.remove_from_cache(
+                        msg.get_question().get_qname().get_name(),
+                        "AAAA".to_string(),
+                    );
+                    self.remove_from_cache(
+                        msg.get_question().get_qname().get_name(),
+                        "SOA".to_string(),
+                    );
+                    self.remove_from_cache(
+                        msg.get_question().get_qname().get_name(),
+                        "MX".to_string(),
+                    );
+                    self.remove_from_cache(
+                        msg.get_question().get_qname().get_name(),
+                        "CNAME".to_string(),
+                    );
 
                     self.add_to_cache(
                         first_authority.get_name().get_name(),
@@ -1306,7 +1344,10 @@ impl ResolverQuery {
                     // Cache
                     // Remove old cache
                     if remove_exist_cache == true {
-                        self.remove_from_cache(ns.get_name().get_name(), ns.clone());
+                        self.remove_from_cache(
+                            ns.get_name().get_name(),
+                            ns.clone().get_string_type(),
+                        );
                         remove_exist_cache = false;
                     }
 
@@ -1338,7 +1379,10 @@ impl ResolverQuery {
 
                             // Remove old cache
                             if remove_exist_cache_ip == true {
-                                self.remove_from_cache(ip.get_name().get_name(), ip.clone());
+                                self.remove_from_cache(
+                                    ip.get_name().get_name(),
+                                    ip.clone().get_string_type(),
+                                );
                                 remove_exist_cache_ip = false;
                             }
 
@@ -1361,7 +1405,11 @@ impl ResolverQuery {
 
         // Continue the delegation
         self.step_2_udp(socket.try_clone().unwrap());
-        self.step_3_udp(socket, rx_update_self_slist);
+        self.step_3_udp(socket.try_clone().unwrap(), rx_update_self_slist);
+
+        if self.new_algorithm == true {
+            self.send_internal_queries_for_child_ns_udp(socket.try_clone().unwrap(), qname);
+        }
     }
 
     // Step 4c from RFC 1034 UDP version
@@ -1387,7 +1435,7 @@ impl ResolverQuery {
         resource_record.set_ttl(resource_record.get_ttl() + self.get_timestamp());
 
         // Cache
-        self.remove_from_cache(cname.get_name(), resource_record.clone());
+        self.remove_from_cache(cname.get_name(), resource_record.clone().get_string_type());
         self.add_to_cache(
             cname.get_name(),
             resource_record,
@@ -1556,6 +1604,175 @@ impl ResolverQuery {
         return None;
     }
 
+    // Sends internal querie to obtain NS child records
+    fn send_internal_queries_for_child_ns_udp(&self, socket: UdpSocket, qname: String) {
+        let resolver_query_to_update = self.clone();
+        let socket_copy = socket.try_clone().unwrap();
+        let queries_left = self.get_queries_before_temporary_error();
+        let new_algorithm = self.new_algorithm;
+
+        thread::spawn(move || {
+            // Necessary info to create a ResolverQuery instance
+            let mut rng = thread_rng();
+            let id: u16 = rng.gen();
+            let dns_msg = DnsMessage::new_query_message(qname.clone(), 2, 1, 0, false, id);
+
+            //DEBUG//
+            println!(
+                "*********************{}: Internal NS Query para {}*****************************",
+                id,
+                qname.clone()
+            );
+            /////////
+
+            let tx_add_udp_copy = resolver_query_to_update.get_add_channel_udp();
+            let tx_delete_udp_copy = resolver_query_to_update.get_delete_channel_udp();
+            let tx_add_tcp_copy = resolver_query_to_update.get_add_channel_tcp();
+            let tx_delete_tcp_copy = resolver_query_to_update.get_delete_channel_tcp();
+            let tx_add_ns_udp_copy = resolver_query_to_update.get_add_channel_ns_udp();
+            let tx_delete_ns_udp_copy = resolver_query_to_update.get_delete_channel_ns_udp();
+            let tx_add_ns_tcp_copy = resolver_query_to_update.get_add_channel_ns_tcp();
+            let tx_delete_ns_tcp_copy = resolver_query_to_update.get_delete_channel_ns_tcp();
+            let tx_update_query_copy = resolver_query_to_update.get_tx_update_query();
+            let tx_delete_query_copy = resolver_query_to_update.get_tx_delete_query();
+            let tx_update_cache_udp_copy = resolver_query_to_update.get_update_cache_udp();
+            let tx_update_cache_tcp_copy = resolver_query_to_update.get_update_cache_tcp();
+            let tx_update_cache_ns_udp_copy = resolver_query_to_update.get_update_cache_ns_udp();
+            let tx_update_cache_ns_tcp_copy = resolver_query_to_update.get_update_cache_ns_tcp();
+
+            let (tx_update_slist_tcp, _rx_update_slist_tcp) = mpsc::channel();
+
+            let (tx_update_self_slist, rx_update_self_slist) = mpsc::channel();
+
+            // Creates ResolverQuery instance
+            let mut internal_query = ResolverQuery::new(
+                tx_add_udp_copy,
+                tx_delete_udp_copy,
+                tx_add_tcp_copy,
+                tx_delete_tcp_copy,
+                tx_add_ns_udp_copy,
+                tx_delete_ns_udp_copy,
+                tx_add_ns_tcp_copy,
+                tx_delete_ns_tcp_copy,
+                tx_update_query_copy.clone(),
+                tx_delete_query_copy,
+                dns_msg,
+                tx_update_cache_udp_copy,
+                tx_update_cache_tcp_copy,
+                tx_update_cache_ns_udp_copy,
+                tx_update_cache_ns_tcp_copy,
+                tx_update_slist_tcp,
+                tx_update_self_slist,
+                new_algorithm,
+            );
+
+            // Initializes the query data struct
+            internal_query.initialize(
+                qname,
+                2,
+                1,
+                0,
+                false,
+                resolver_query_to_update.get_sbelt(),
+                resolver_query_to_update.get_cache(),
+                resolver_query_to_update.get_ns_data(),
+                socket_copy.local_addr().unwrap().to_string(),
+                id,
+            );
+
+            internal_query.set_internal_query(true, queries_left - 1);
+            //internal_query.set_query_id_update_slist(resolver_query_to_update.get_main_query_id());
+
+            tx_update_query_copy.send(internal_query.clone());
+
+            // Sends the query
+            internal_query.step_2_udp(socket_copy.try_clone().unwrap());
+            internal_query.step_3_udp(socket_copy, rx_update_self_slist);
+        });
+    }
+
+    // Sends internal querie to obtain NS child records
+    fn send_internal_queries_for_child_ns_tcp(&self, qname: String) {
+        let resolver_query_to_update = self.clone();
+        let queries_left = self.get_queries_before_temporary_error();
+        let new_algorithm = self.new_algorithm;
+
+        thread::spawn(move || {
+            // Necessary info to create a ResolverQuery
+            let mut rng = thread_rng();
+            let id: u16 = rng.gen();
+            let dns_msg = DnsMessage::new_query_message(qname.clone(), 2, 1, 0, false, id);
+
+            let tx_add_udp_copy = resolver_query_to_update.get_add_channel_udp();
+            let tx_delete_udp_copy = resolver_query_to_update.get_delete_channel_udp();
+            let tx_add_tcp_copy = resolver_query_to_update.get_add_channel_tcp();
+            let tx_delete_tcp_copy = resolver_query_to_update.get_delete_channel_tcp();
+            let tx_add_ns_udp_copy = resolver_query_to_update.get_add_channel_ns_udp();
+            let tx_delete_ns_udp_copy = resolver_query_to_update.get_delete_channel_ns_udp();
+            let tx_add_ns_tcp_copy = resolver_query_to_update.get_add_channel_ns_tcp();
+            let tx_delete_ns_tcp_copy = resolver_query_to_update.get_delete_channel_ns_tcp();
+            let tx_update_query_copy = resolver_query_to_update.get_tx_update_query();
+            let tx_delete_query_copy = resolver_query_to_update.get_tx_delete_query();
+            let tx_update_cache_udp_copy = resolver_query_to_update.get_update_cache_udp();
+            let tx_update_cache_tcp_copy = resolver_query_to_update.get_update_cache_tcp();
+            let tx_update_cache_ns_udp_copy = resolver_query_to_update.get_update_cache_ns_udp();
+            let tx_update_cache_ns_tcp_copy = resolver_query_to_update.get_update_cache_ns_tcp();
+
+            let (update_slist_tcp_sender, update_slist_tcp_recv) = mpsc::channel();
+            let (tx_update_self_slist, rx_update_self_slist) = mpsc::channel();
+
+            // Creates a ResolverQuery instance
+            let mut internal_query = ResolverQuery::new(
+                tx_add_udp_copy,
+                tx_delete_udp_copy,
+                tx_add_tcp_copy,
+                tx_delete_tcp_copy,
+                tx_add_ns_udp_copy,
+                tx_delete_ns_udp_copy,
+                tx_add_ns_tcp_copy,
+                tx_delete_ns_tcp_copy,
+                tx_update_query_copy,
+                tx_delete_query_copy,
+                dns_msg,
+                tx_update_cache_udp_copy,
+                tx_update_cache_tcp_copy,
+                tx_update_cache_ns_udp_copy,
+                tx_update_cache_ns_tcp_copy,
+                update_slist_tcp_sender,
+                tx_update_self_slist,
+                new_algorithm,
+            );
+
+            // Initializes the query data struct
+            internal_query.initialize(
+                qname,
+                2,
+                1,
+                0,
+                false,
+                resolver_query_to_update.get_sbelt(),
+                resolver_query_to_update.get_cache(),
+                resolver_query_to_update.get_ns_data(),
+                "".to_string(),
+                id,
+            );
+
+            internal_query.set_internal_query(true, queries_left - 1);
+            //internal_query.set_query_id_update_slist(resolver_query_to_update.get_main_query_id());
+
+            internal_query.step_2_tcp();
+            let response_msg = internal_query.step_3_tcp(update_slist_tcp_recv);
+
+            // Update resolver query
+            let answers = response_msg.get_answer();
+            let host_name = answers[0].clone().get_name().get_name();
+
+            resolver_query_to_update
+                .get_update_slist_tcp_sender()
+                .send((host_name, answers));
+        });
+    }
+
     // Sends internal queries to obtain ip address for slist
     fn send_internal_queries_for_slist_udp(&self, slist: Slist, socket: UdpSocket) {
         //DEBUG//
@@ -1569,6 +1786,7 @@ impl ResolverQuery {
             let resolver_query_to_update = self.clone();
             let socket_copy = socket.try_clone().unwrap();
             let queries_left = self.get_queries_before_temporary_error();
+            let new_algorithm = self.new_algorithm;
 
             thread::spawn(move || {
                 let ip_addr = ns.get(&"ip_address".to_string()).unwrap().to_string();
@@ -1627,6 +1845,7 @@ impl ResolverQuery {
                         tx_update_cache_ns_tcp_copy,
                         tx_update_slist_tcp,
                         tx_update_self_slist,
+                        new_algorithm,
                     );
 
                     // Initializes the query data struct
@@ -2078,7 +2297,10 @@ impl ResolverQuery {
                     // Cache
                     // Remove old cache
                     if remove_exist_cache == true {
-                        self.remove_from_cache(ns.get_name().get_name(), ns.clone());
+                        self.remove_from_cache(
+                            ns.get_name().get_name(),
+                            ns.clone().get_string_type(),
+                        );
                         remove_exist_cache = false;
                     }
 
@@ -2110,7 +2332,10 @@ impl ResolverQuery {
 
                             // Remove old cache
                             if remove_exist_cache_ip == true {
-                                self.remove_from_cache(ip.get_name().get_name(), ip.clone());
+                                self.remove_from_cache(
+                                    ip.get_name().get_name(),
+                                    ip.clone().get_string_type(),
+                                );
                                 remove_exist_cache_ip = false;
                             }
 
@@ -2127,6 +2352,11 @@ impl ResolverQuery {
                     }
                 }
             }
+        }
+
+        // NS set from child
+        if self.new_algorithm == true {
+            self.send_internal_queries_for_child_ns_tcp(msg.get_question().get_qname().get_name());
         }
 
         // Continue the delegation
@@ -2154,7 +2384,7 @@ impl ResolverQuery {
         let cname = rr_data.get_cname();
 
         // Cache
-        self.remove_from_cache(cname.get_name(), resource_record.clone());
+        self.remove_from_cache(cname.get_name(), resource_record.clone().get_string_type());
         self.add_to_cache(
             cname.get_name(),
             resource_record,
@@ -2211,6 +2441,7 @@ impl ResolverQuery {
         for ns in ns_list {
             let resolver_query_to_update = self.clone();
             let queries_left = self.get_queries_before_temporary_error();
+            let new_algorithm = self.new_algorithm;
 
             thread::spawn(move || {
                 let ip_addr = ns.get(&"ip_address".to_string()).unwrap().to_string();
@@ -2264,6 +2495,7 @@ impl ResolverQuery {
                         tx_update_cache_ns_tcp_copy,
                         update_slist_tcp_sender,
                         tx_update_self_slist,
+                        new_algorithm,
                     );
 
                     // Initializes the query data struct
@@ -2365,22 +2597,21 @@ impl ResolverQuery {
     }
 
     // Removes an element from cache
-    pub fn remove_from_cache(&mut self, domain_name: String, resource_record: ResourceRecord) {
+    pub fn remove_from_cache(&mut self, domain_name: String, rr_type: String) {
         // Gets cache
         let mut cache = self.get_cache();
-        let rr_type = resource_record.get_string_type();
 
         // Sends info to update the cache
         self.get_delete_channel_udp()
-            .send((domain_name.clone(), resource_record.clone()))
+            .send((domain_name.clone(), rr_type.clone()))
             .unwrap();
         self.get_delete_channel_tcp()
-            .send((domain_name.clone(), resource_record.clone()))
+            .send((domain_name.clone(), rr_type.clone()))
             .unwrap();
         self.get_delete_channel_ns_udp()
-            .send((domain_name.clone(), resource_record.clone()));
+            .send((domain_name.clone(), rr_type.clone()));
         self.get_delete_channel_ns_tcp()
-            .send((domain_name.clone(), resource_record.clone()));
+            .send((domain_name.clone(), rr_type.clone()));
 
         // Removes the element
         cache.remove(domain_name, rr_type);
@@ -2533,12 +2764,12 @@ impl ResolverQuery {
     }
 
     /// Get the owner's query address
-    pub fn get_delete_channel_udp(&self) -> Sender<(String, ResourceRecord)> {
+    pub fn get_delete_channel_udp(&self) -> Sender<(String, String)> {
         self.delete_channel_udp.clone()
     }
 
     /// Get the owner's query address
-    pub fn get_delete_channel_tcp(&self) -> Sender<(String, ResourceRecord)> {
+    pub fn get_delete_channel_tcp(&self) -> Sender<(String, String)> {
         self.delete_channel_tcp.clone()
     }
 
@@ -2553,12 +2784,12 @@ impl ResolverQuery {
     }
 
     /// Get the owner's query address
-    pub fn get_delete_channel_ns_udp(&self) -> Sender<(String, ResourceRecord)> {
+    pub fn get_delete_channel_ns_udp(&self) -> Sender<(String, String)> {
         self.delete_channel_ns_udp.clone()
     }
 
     /// Get the owner's query address
-    pub fn get_delete_channel_ns_tcp(&self) -> Sender<(String, ResourceRecord)> {
+    pub fn get_delete_channel_ns_tcp(&self) -> Sender<(String, String)> {
         self.delete_channel_ns_tcp.clone()
     }
 
