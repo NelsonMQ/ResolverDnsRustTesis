@@ -124,6 +124,26 @@ pub fn main() {
         .to_vec();
 
         experiments::missconfigured_experiments(4, master_files_case_4, true);
+    } else if trim_input_line == "MCC5" {
+        let master_files_case_5 = [
+            "root_case_5.txt".to_string(),
+            "child_case_5.txt".to_string(),
+        ]
+        .to_vec();
+
+        experiments::missconfigured_experiments(6, master_files_case_5, false);
+    } else if trim_input_line == "MCC5NA" {
+        let master_files_case_5 = [
+            "root_case_5.txt".to_string(),
+            "child_case_5.txt".to_string(),
+        ]
+        .to_vec();
+
+        experiments::missconfigured_experiments(6, master_files_case_5, true);
+    } else if trim_input_line == "MCC6" {
+        experiments::missconfigured_experiment_nxdomain(7, false);
+    } else if trim_input_line == "MCC6NA" {
+        experiments::missconfigured_experiment_nxdomain(7, true);
     } else if trim_input_line == "MCCZ1" {
         experiments::get_domains_and_ns_records_from_zone_file(
             "CL-20220725.zone".to_string(),

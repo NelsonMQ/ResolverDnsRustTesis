@@ -1,0 +1,17 @@
+$ORIGIN dcc.cl.
+@   IN        SOA     VENERA      Action\.domains (
+                                 20     ; SERIAL
+                                 7200   ; REFRESH
+                                 600    ; RETRY
+                                 3600000; EXPIRE
+                                 60)    ; MINIMUM
+
+        A       192.2.3.2
+
+uchile  A       195.3.4.2
+
+ns3     A       190.20.3.3
+
+ns1     A       190.20.3.3
+
+ns2     A       190.20.3.3
