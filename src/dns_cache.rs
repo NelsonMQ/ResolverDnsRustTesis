@@ -46,6 +46,8 @@ impl DnsCache {
         no_data: bool,
         rr_type_data: String,
     ) {
+        let lower_case_name = domain_name.to_lowercase();
+
         let mut cache = self.get_cache();
         let mut rr_type = match resource_record.get_type_code() {
             1 => "A".to_string(),
@@ -83,16 +85,16 @@ impl DnsCache {
         if let Some(x) = cache.get_mut(&rr_type) {
             let mut type_hash = x.clone();
 
-            if let Some(y) = type_hash.get(&domain_name) {
+            if let Some(y) = type_hash.get(&lower_case_name) {
                 let mut host_rrs_vec = y.clone();
 
                 host_rrs_vec.push(rr_cache);
-                type_hash.insert(domain_name, host_rrs_vec);
+                type_hash.insert(lower_case_name, host_rrs_vec);
             } else {
                 let mut rr_vec = Vec::<RRCache>::new();
                 rr_vec.push(rr_cache);
 
-                type_hash.insert(domain_name, rr_vec);
+                type_hash.insert(lower_case_name, rr_vec);
             }
 
             cache.insert(rr_type, type_hash);
@@ -101,7 +103,7 @@ impl DnsCache {
             let mut rr_vec = Vec::<RRCache>::new();
             rr_vec.push(rr_cache);
 
-            new_hosts_hash.insert(domain_name, rr_vec);
+            new_hosts_hash.insert(lower_case_name, rr_vec);
 
             cache.insert(rr_type, new_hosts_hash);
         }
@@ -113,10 +115,11 @@ impl DnsCache {
     /// Removes an element from cache
     pub fn remove(&mut self, domain_name: String, rr_type: String) {
         let mut cache = self.get_cache();
+        let lower_case_name = domain_name.to_lowercase();
 
         if let Some(x) = cache.get(&rr_type) {
             let mut x_clone = x.clone();
-            if let Some(y) = x_clone.remove(&domain_name) {
+            if let Some(y) = x_clone.remove(&lower_case_name) {
                 cache.insert(rr_type, x_clone.clone());
                 self.set_cache(cache);
                 self.set_size(self.get_size() - y.len() as u32);
@@ -128,9 +131,11 @@ impl DnsCache {
     pub fn get(&mut self, domain_name: String, rr_type: String) -> Vec<RRCache> {
         let mut cache = self.get_cache();
 
+        let lower_case_name = domain_name.to_lowercase();
+
         if let Some(x) = cache.get(&rr_type) {
             let mut new_x = x.clone();
-            if let Some(y) = new_x.get(&domain_name) {
+            if let Some(y) = new_x.get(&lower_case_name) {
                 let new_y = y.clone();
                 let mut rr_cache_vec = Vec::<RRCache>::new();
 
@@ -139,7 +144,7 @@ impl DnsCache {
                     rr_cache_vec.push(rr_cache.clone());
                 }
 
-                new_x.insert(domain_name, rr_cache_vec.clone());
+                new_x.insert(lower_case_name, rr_cache_vec.clone());
 
                 cache.insert(rr_type, new_x);
 
@@ -158,7 +163,7 @@ impl DnsCache {
         domain_name: String,
         rr_type: String,
     ) -> (bool, Vec<RRCache>) {
-        let host_name = domain_name.clone();
+        let host_name = domain_name.clone().to_lowercase();
         let mut labels: Vec<&str> = host_name.split('.').collect();
 
         // While there are labels
@@ -228,7 +233,8 @@ impl DnsCache {
         rr_type: String,
         ip_address: String,
     ) -> u32 {
-        let rr_cache_vec = self.get(domain_name, rr_type);
+        let lower_case_name = domain_name.to_lowercase();
+        let rr_cache_vec = self.get(lower_case_name, rr_type);
 
         for rr_cache in rr_cache_vec {
             let rr_ip_address = match rr_cache.get_resource_record().get_rdata() {
@@ -270,10 +276,11 @@ impl DnsCache {
         ip_address: String,
     ) {
         let mut cache = self.get_cache();
+        let lower_case_name = domain_name.to_lowercase();
 
         if let Some(x) = cache.get(&rr_type) {
             let mut new_x = x.clone();
-            if let Some(y) = new_x.get(&domain_name) {
+            if let Some(y) = new_x.get(&lower_case_name) {
                 let new_y = y.clone();
                 let mut rr_cache_vec = Vec::<RRCache>::new();
 
@@ -306,7 +313,7 @@ impl DnsCache {
                     rr_cache_vec.push(rr_cache.clone());
                 }
 
-                new_x.insert(domain_name, rr_cache_vec.clone());
+                new_x.insert(lower_case_name, rr_cache_vec.clone());
 
                 cache.insert(rr_type, new_x);
 

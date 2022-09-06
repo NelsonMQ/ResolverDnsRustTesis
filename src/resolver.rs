@@ -21,6 +21,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
 use std::thread;
+use std::thread::JoinHandle;
 use std::time::Duration;
 use std::vec::Vec;
 
@@ -189,8 +190,13 @@ impl Resolver {
 
         // Receives messages
         loop {
-            // Updates queries
+            for (id, query) in queries_hash_by_id.clone().into_iter() {
+                let mut query_copy = query.clone();
+                query_copy.set_cache(self.cache.clone());
+                queries_hash_by_id.insert(query_copy.get_main_query_id(), query_copy);
+            }
 
+            // Updates queries
             let mut queries_to_update = rx_update_query.try_iter();
             let mut next_query_to_update = queries_to_update.next();
 
@@ -211,7 +217,7 @@ impl Resolver {
 
             //
 
-            //println!("Queries len: {}", queries_hash_by_id.len());
+            println!("Queries len: {}", queries_hash_by_id.len());
 
             // Delete queries already answered
 
@@ -232,7 +238,7 @@ impl Resolver {
 
             //
 
-            //println!("Queries len after delete: {}", queries_hash_by_id.len());
+            println!("Queries len after delete: {}", queries_hash_by_id.len());
 
             // Delete from cache
 
@@ -303,13 +309,27 @@ impl Resolver {
                 let (tx_update_self_slist, rx_update_self_slist) = mpsc::channel();
 
                 if timestamp_ms > (timeout as u64 + last_query_timestamp) {
-                    //println!("Timeout!!!!!!!!");
+                    println!("Timeout! - {} - {}", query.get_sname(), query.get_stype());
 
-                    let timeout_socket = socket.try_clone().unwrap();
+                    if timestamp_ms > 5 * (timeout as u64 + last_query_timestamp) {
+                        queries_hash_by_id.remove(&query.get_main_query_id());
 
-                    thread::spawn(move || {
-                        query.step_3_udp(timeout_socket, rx_update_self_slist);
-                    });
+                        let slist_to_update = Slist::new();
+                        query.get_tx_update_self_slist().send(slist_to_update);
+                    } else {
+                        let timeout_socket = socket.try_clone().unwrap();
+                        let timeout_socket_2 = socket.try_clone().unwrap();
+
+                        let slist_to_update = Slist::new();
+                        query.get_tx_update_self_slist().send(slist_to_update);
+
+                        query.set_cache(self.cache.clone());
+
+                        thread::spawn(move || {
+                            query.step_2_udp(timeout_socket_2);
+                            query.step_3_udp(timeout_socket, rx_update_self_slist);
+                        });
+                    }
                 }
             }
 
@@ -339,7 +359,7 @@ impl Resolver {
             ////////////////////////
             *///
 
-            //println!("{}", "Waiting msg");
+            println!("{}", "Waiting msg");
 
             // We receive the msg
             let mut dns_message_option =
@@ -460,7 +480,7 @@ impl Resolver {
                 let tx_query_delete_clone = tx_delete_query_copy.clone();
 
                 // Creates the thread to process the query
-                thread::spawn(move || {
+                let q_thread = thread::spawn(move || {
                     // Get local answer if it exists, or send the query to name server in other case
                     let answer_local = resolver_query.step_1_udp(
                         socket_copy.try_clone().unwrap(),
@@ -566,25 +586,26 @@ impl Resolver {
                     "qname: {}",
                     dns_message.get_question().get_qname().get_name()
                 );*/
-                /*println!(
-                    "AA: {}, NS: {}, AD: {}",
+                println!(
+                    "AA: {}, NS: {}, AD: {} - Name: {}",
                     dns_message.get_answer().len(),
                     dns_message.get_authority().len(),
-                    dns_message.get_additional().len()
-                );*/
+                    dns_message.get_additional().len(),
+                    dns_message.get_question().get_qname().get_name(),
+                );
 
                 /////////////////////////////////////////////////////////////////////////////
 
                 // Checks the id from the message
                 if queries_hash_by_id_copy.contains_key(&answer_id) {
-                    //println!("Message answer ID checked");
+                    println!("Message answer ID checked");
 
                     // Create necessary channels
                     let tx_query_delete_clone = tx_delete_query.clone();
                     let tx_query_update_clone = tx_update_query.clone();
 
                     // Creates thread to procces the response
-                    thread::spawn(move || {
+                    let r_thread = thread::spawn(move || {
                         let mut resolver_query =
                             queries_hash_by_id_copy.get(&answer_id).unwrap().clone();
 
@@ -679,6 +700,7 @@ impl Resolver {
 
                                     match resolver_query_to_update_result {
                                         Some(val) => {
+                                            println!("Estaba la query para actualizar!");
                                             // Info needed to update slist in internal query
                                             let mut resolver_query_to_update = val.clone();
                                             let mut slist_to_update =
@@ -723,11 +745,19 @@ impl Resolver {
                                                             "name".to_string(),
                                                             host_name.clone(),
                                                         );
-                                                        new_ns_to_ask
-                                                            .insert("ip_address".to_string(), ip);
+                                                        new_ns_to_ask.insert(
+                                                            "ip_address".to_string(),
+                                                            ip.clone(),
+                                                        );
                                                         new_ns_to_ask.insert(
                                                             "response_time".to_string(),
                                                             "5000".to_string(),
+                                                        );
+
+                                                        println!(
+                                                            "Name {} - IP {}",
+                                                            host_name.clone(),
+                                                            ip.clone()
                                                         );
 
                                                         // Add the NS to the update list
@@ -800,9 +830,19 @@ impl Resolver {
         let listener = TcpListener::bind(&host_address_and_port).expect("Could not bind");
         //println!("{}", "TcpListener Created");
 
+        let mut threads: Vec<JoinHandle<_>> = Vec::new();
+
         // Receives messages
         loop {
             //println!("{}", "Waiting msg");
+
+            /*Wait threads
+            for t in threads {
+                t.join();
+            }
+            */
+
+            threads = Vec::new();
 
             // Accept connection
             match listener.accept() {
@@ -921,7 +961,7 @@ impl Resolver {
                     let new_algorithm = self.new_algorithm;
 
                     // Creates a new thread to process the msg
-                    thread::spawn(move || {
+                    let thread_query = thread::spawn(move || {
                         let dns_message = dns_message_parse_result.unwrap();
 
                         //println!("{}", "Query message parsed");
@@ -997,6 +1037,8 @@ impl Resolver {
                             //println!("{}", "Thread Finished")
                         }
                     });
+
+                    threads.push(thread_query);
                 }
                 Err(e) => {
                     //println!("Error: {}", e);
@@ -1054,6 +1096,8 @@ impl Resolver {
         let mut dns_msg_parsed_result;
 
         if tc == 1 {
+            println!("Manda mensaje por TCP ya que TC = 1");
+
             // Parse the question
             let msg_question = Question::from_bytes(&msg[12..], &msg).unwrap().0;
 

@@ -257,7 +257,7 @@ pub fn main() {
                 delete_recv_tcp,
                 rx_update_cache_udp,
                 rx_update_cache_tcp,
-                true,
+                false,
             );
         } else if trim_input_line == "N" {
             let mut input_line = String::new();
