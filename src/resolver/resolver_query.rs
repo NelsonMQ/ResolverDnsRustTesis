@@ -218,6 +218,7 @@ impl ResolverQuery {
         let mut labels: Vec<&str> = host_name_copy.split('.').collect();
         let mut new_slist = Slist::new();
 
+        /*
         /// Print cache ///
         ///
         let current_cache = self.get_cache();
@@ -237,7 +238,7 @@ impl ResolverQuery {
 
         println!("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
         ////////////////////////
-        //
+        */
 
         // While there are labels
         while labels.len() > 0 {
@@ -822,15 +823,17 @@ impl ResolverQuery {
                     );
 
                     if (exist_in_cache == false || data_ranking > 3) {
+                        //println!("Removiendo desde 4a: {}", an.get_name().get_name());
+                        if exist_in_cache == true {
+                            self.remove_from_cache(
+                                answer[0].clone().get_name().get_name(),
+                                answer[0].clone().get_string_type(),
+                            )
+                        };
+
                         for an in answer.iter_mut() {
                             if an.get_ttl() > 0 && an.get_type_code() == self.get_stype() {
                                 an.set_ttl(an.get_ttl() + self.get_timestamp());
-
-                                //println!("Removiendo desde 4a: {}", an.get_name().get_name());
-                                self.remove_from_cache(
-                                    an.get_name().get_name(),
-                                    an.clone().get_string_type(),
-                                );
 
                                 // Add new Cache
                                 /*println!(
@@ -935,15 +938,16 @@ impl ResolverQuery {
                         }
                     } else {
                         if (data_ranking > 6) {
+                            self.remove_from_cache(
+                                answer[0].clone().get_name().get_name(),
+                                answer[0].clone().get_string_type(),
+                            );
+
                             for an in answer.iter_mut() {
                                 if an.get_ttl() > 0 && an.get_type_code() == self.get_stype() {
                                     an.set_ttl(an.get_ttl() + self.get_timestamp());
 
                                     // Cache
-                                    self.remove_from_cache(
-                                        an.get_name().get_name(),
-                                        an.clone().get_string_type(),
-                                    );
                                     self.add_to_cache(
                                         an.get_name().get_name(),
                                         an.clone(),
@@ -1186,8 +1190,24 @@ impl ResolverQuery {
                 println!("Step 3: Slist len: {}", slist.len());
                 println!("Sname: {} - Stype: {}", self.get_sname(), self.get_stype());
 
-                let ten_millis = Duration::from_millis(1000);
+                let ten_millis = Duration::from_millis(500);
                 thread::sleep(ten_millis);
+
+                let timeout = self.get_timeout();
+                let last_query_timestamp = self.get_last_query_timestamp();
+                let now = Utc::now();
+                let timestamp_ms = now.timestamp_millis() as u64;
+
+                let min_time = 2 * (timeout as u64);
+
+                if (timestamp_ms - last_query_timestamp) > min_time {
+                    println!(
+                        "Timeout! - {} - {} en step_3_udp",
+                        self.get_sname(),
+                        self.get_stype()
+                    );
+                    return;
+                }
 
                 let mut received_update_slist = rx_update_self_slist.try_iter();
 
@@ -1202,10 +1222,12 @@ impl ResolverQuery {
 
                     let ns_list = new_slist.get_ns_list();
 
+                    /*
                     if ns_list.len() == 0 {
                         println!("LLego slist vacia");
                         return;
                     }
+                    */
 
                     self.set_slist(new_slist);
 
@@ -1417,11 +1439,13 @@ impl ResolverQuery {
         if (exist_in_cache == false || data_ranking > 4) {
             println!("Se guarda");
 
-            // Delete cache
-            self.remove_from_cache(
-                authority[0].clone().get_name().get_name(),
-                authority[0].clone().get_string_type(),
-            );
+            if exist_in_cache == true {
+                // Delete cache
+                self.remove_from_cache(
+                    authority[0].clone().get_name().get_name(),
+                    authority[0].clone().get_string_type(),
+                );
+            }
 
             for ns in authority.iter_mut() {
                 if self.compare_match_count(ns.get_name().get_name()) {
@@ -1446,8 +1470,6 @@ impl ResolverQuery {
                     };
                     //
 
-                    let mut remove_exist_cache_ip = true;
-
                     // Adds and remove ip addresses
                     for ip in additional.iter_mut() {
                         if ns_domain_name == ip.get_name().get_name() {
@@ -1458,13 +1480,12 @@ impl ResolverQuery {
                             if exist_in_cache == false || data_ranking > 5 {
                                 ip.set_ttl(ip.get_ttl() + self.get_timestamp());
 
-                                // Remove old cache
-                                if remove_exist_cache_ip == true {
+                                if exist_in_cache == true {
+                                    // Remove old cache
                                     self.remove_from_cache(
                                         ip.get_name().get_name(),
                                         ip.clone().get_string_type(),
                                     );
-                                    remove_exist_cache_ip = false;
                                 }
 
                                 // Cache
@@ -1959,8 +1980,6 @@ impl ResolverQuery {
                 // Sends the query
                 internal_query.step_2_udp(socket_copy.try_clone().unwrap());
                 internal_query.step_3_udp(socket_copy, rx_update_self_slist);
-
-                break;
             }
         }
     }
@@ -2375,24 +2394,21 @@ impl ResolverQuery {
             authority[0].clone(),
         );
 
-        let mut remove_exist_cache = true;
-
         if (exist_in_cache == false || data_ranking > 4) {
+            if exist_in_cache == true {
+                //Remove old cache
+                self.remove_from_cache(
+                    authority[0].clone().get_name().get_name(),
+                    authority[0].clone().get_string_type(),
+                );
+            }
+
             // Adds NS and A RRs to cache if these can help
             for ns in authority.iter_mut() {
                 if self.compare_match_count(ns.get_name().get_name()) {
                     ns.set_ttl(ns.get_ttl() + self.get_timestamp());
 
                     // Cache
-                    // Remove old cache
-                    if remove_exist_cache == true {
-                        self.remove_from_cache(
-                            ns.get_name().get_name(),
-                            ns.clone().get_string_type(),
-                        );
-                        remove_exist_cache = false;
-                    }
-
                     // Add new cache
                     self.add_to_cache(
                         ns.get_name().get_name(),
@@ -2412,31 +2428,33 @@ impl ResolverQuery {
                     };
                     //
 
-                    let mut remove_exist_cache_ip = true;
-
                     // Removes and adds the ip addresses
                     for ip in additional.iter_mut() {
                         if ns_domain_name == ip.get_name().get_name() {
-                            ip.set_ttl(ip.get_ttl() + self.get_timestamp());
+                            // We check if cache exist for the ip
+                            let (exist_in_cache, data_ranking) =
+                                self.exist_cache_data(ip.get_name().get_name(), ip.clone());
 
-                            // Remove old cache
-                            if remove_exist_cache_ip == true {
-                                self.remove_from_cache(
+                            if exist_in_cache == false || data_ranking > 5 {
+                                ip.set_ttl(ip.get_ttl() + self.get_timestamp());
+
+                                if exist_in_cache {
+                                    self.remove_from_cache(
+                                        ip.get_name().get_name(),
+                                        ip.clone().get_string_type(),
+                                    );
+                                }
+
+                                // Cache
+                                self.add_to_cache(
                                     ip.get_name().get_name(),
-                                    ip.clone().get_string_type(),
+                                    ip.clone(),
+                                    7,
+                                    false,
+                                    false,
+                                    "".to_string(),
                                 );
-                                remove_exist_cache_ip = false;
                             }
-
-                            // Cache
-                            self.add_to_cache(
-                                ip.get_name().get_name(),
-                                ip.clone(),
-                                7,
-                                false,
-                                false,
-                                "".to_string(),
-                            );
                         }
                     }
                 }

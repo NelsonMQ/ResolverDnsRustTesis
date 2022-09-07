@@ -13,7 +13,7 @@ pub static RESOLVER_IP_PORT: &'static str = "192.168.1.90:58396";
 pub static SBELT_ROOT_IPS: [&str; 2] = ["192.33.4.12:53", "198.41.0.4:53"];
 
 // Queries quantity for each query, before the resolver panic in a Temporary Error
-pub static QUERIES_FOR_CLIENT_REQUEST: u16 = 100;
+pub static QUERIES_FOR_CLIENT_REQUEST: u16 = 50;
 
 // Cache
 pub static USE_CACHE: bool = true;

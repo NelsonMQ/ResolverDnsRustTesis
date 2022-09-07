@@ -309,21 +309,40 @@ impl Resolver {
                 let (tx_update_self_slist, rx_update_self_slist) = mpsc::channel();
 
                 if timestamp_ms > (timeout as u64 + last_query_timestamp) {
-                    println!("Timeout! - {} - {}", query.get_sname(), query.get_stype());
+                    println!(
+                        "Timeout! - {} - {} - timeout:{} - tiempo_paso:{}",
+                        query.get_sname(),
+                        query.get_stype(),
+                        timeout,
+                        timestamp_ms - last_query_timestamp
+                    );
 
-                    if timestamp_ms > 5 * (timeout as u64 + last_query_timestamp) {
+                    if (timestamp_ms - last_query_timestamp) > 2 * (timeout as u64) {
+                        println!("Timeout *2, eliminando  consulta");
                         queries_hash_by_id.remove(&query.get_main_query_id());
-
-                        let slist_to_update = Slist::new();
-                        query.get_tx_update_self_slist().send(slist_to_update);
                     } else {
+                        // Copy sockets
                         let timeout_socket = socket.try_clone().unwrap();
                         let timeout_socket_2 = socket.try_clone().unwrap();
 
+                        /*
                         let slist_to_update = Slist::new();
                         query.get_tx_update_self_slist().send(slist_to_update);
+                        */
 
+                        // Update cache
                         query.set_cache(self.cache.clone());
+
+                        // Set query timestamp
+                        let now = Utc::now();
+                        let timestamp_query = now.timestamp_millis();
+
+                        query.set_last_query_timestamp(timestamp_query as u64);
+                        query.set_queries_before_temporary_error(
+                            query.get_queries_before_temporary_error() - 1,
+                        );
+
+                        //
 
                         thread::spawn(move || {
                             query.step_2_udp(timeout_socket_2);
@@ -337,12 +356,12 @@ impl Resolver {
 
             ////////////////////////////////////////////////////////////////////
 
+            /*
             /// Print cache ///
             ///
             let current_cache = self.get_cache();
             let cache_hash = current_cache.get_cache();
 
-            /*
             //println!(
                 "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    RRs en caché   %%%%%%%%%%%%%%%%%%%%%%%%%%%%"
             );
