@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::net::TcpStream;
 use std::net::UdpSocket;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
@@ -218,9 +219,9 @@ impl ResolverQuery {
         let mut labels: Vec<&str> = host_name_copy.split('.').collect();
         let mut new_slist = Slist::new();
 
-        /*
         /// Print cache ///
         ///
+        /*
         let current_cache = self.get_cache();
         let cache_hash = current_cache.get_cache();
 
@@ -239,7 +240,6 @@ impl ResolverQuery {
         println!("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
         ////////////////////////
         */
-
         // While there are labels
         while labels.len() > 0 {
             // Sets parent host name
@@ -295,6 +295,10 @@ impl ResolverQuery {
             // Iters over ns rr's found
             for ns in ns_parent_host_name.clone() {
                 // Gets the info inside rr
+                if ns.get_resource_record().get_type_code() != 2 {
+                    continue;
+                }
+
                 let rr_rdata = match ns.get_resource_record().get_rdata() {
                     Rdata::SomeNsRdata(val) => val.clone(),
                     _ => unreachable!(),
@@ -303,7 +307,7 @@ impl ResolverQuery {
                 // Gets the NS domain name
                 let ns_parent_host_name_string = rr_rdata.get_nsdname().get_name().to_lowercase();
 
-                println!("NS name: {}", ns_parent_host_name_string.clone());
+                //println!("NS name: {}", ns_parent_host_name_string.clone());
 
                 // Sets zone name equivalent
                 new_slist.set_zone_name_equivalent(labels.len() as i32);
@@ -822,6 +826,11 @@ impl ResolverQuery {
                         answer[0].clone(),
                     );
 
+                    println!(
+                        "Step 4a - answer type: {}",
+                        answer[0].clone().get_type_code()
+                    );
+
                     if (exist_in_cache == false || data_ranking > 3) {
                         //println!("Removiendo desde 4a: {}", an.get_name().get_name());
                         if exist_in_cache == true {
@@ -832,7 +841,7 @@ impl ResolverQuery {
                         };
 
                         for an in answer.iter_mut() {
-                            if an.get_ttl() > 0 && an.get_type_code() == self.get_stype() {
+                            if an.get_ttl() > 0 {
                                 an.set_ttl(an.get_ttl() + self.get_timestamp());
 
                                 // Add new Cache
@@ -1151,14 +1160,18 @@ impl ResolverQuery {
 
         // Temporary Error
         if queries_left <= 0 {
-            let tx_delete_query = self.get_tx_delete_query();
-            tx_delete_query.send(self.clone());
-            panic!("Temporary Error");
+            self.get_tx_delete_query().send(self.clone());
+            return;
         }
 
         // Gets slist
         let mut slist = self.get_slist();
         let mut slist_len = slist.len();
+
+        if slist_len <= 0 {
+            self.get_tx_delete_query().send(self.clone());
+            return;
+        }
 
         // Gets the index to choose in slist
         let mut index_to_choose = self.get_index_to_choose() % slist_len as u16;
@@ -1186,11 +1199,14 @@ impl ResolverQuery {
                     send_queries_if_empty = false;
                 }
 
-                println!("--------------------------Esperando Slist");
+                println!(
+                    "--------{}------------------Esperando Slist",
+                    self.get_main_query_id()
+                );
                 println!("Step 3: Slist len: {}", slist.len());
                 println!("Sname: {} - Stype: {}", self.get_sname(), self.get_stype());
 
-                let ten_millis = Duration::from_millis(500);
+                let ten_millis = Duration::from_millis(1000);
                 thread::sleep(ten_millis);
 
                 let timeout = self.get_timeout();
@@ -1198,7 +1214,7 @@ impl ResolverQuery {
                 let now = Utc::now();
                 let timestamp_ms = now.timestamp_millis() as u64;
 
-                let min_time = 2 * (timeout as u64);
+                let min_time = (timeout as u64);
 
                 if (timestamp_ms - last_query_timestamp) > min_time {
                     println!(
@@ -1208,35 +1224,28 @@ impl ResolverQuery {
                     );
                     return;
                 }
+            }
 
-                let mut received_update_slist = rx_update_self_slist.try_iter();
+            let mut received_update_slist = rx_update_self_slist.try_iter();
 
-                let mut next_slist_value = received_update_slist.next();
+            let mut next_slist_value = received_update_slist.next();
 
-                while next_slist_value.is_none() == false {
-                    println!(
-                        "--------------------LLego algo a la slist: {}",
-                        self.get_sname()
-                    );
-                    let new_slist = next_slist_value.unwrap();
+            while next_slist_value.is_none() == false {
+                println!(
+                    "--------------------LLego algo a la slist: {}",
+                    self.get_sname()
+                );
+                let new_slist = next_slist_value.unwrap();
 
-                    let ns_list = new_slist.get_ns_list();
+                let ns_list = new_slist.get_ns_list();
 
-                    /*
-                    if ns_list.len() == 0 {
-                        println!("LLego slist vacia");
-                        return;
-                    }
-                    */
+                self.set_slist(new_slist);
 
-                    self.set_slist(new_slist);
+                next_slist_value = received_update_slist.next();
 
-                    next_slist_value = received_update_slist.next();
+                counter = 0;
 
-                    counter = 0;
-
-                    break;
-                }
+                break;
             }
 
             // We choose the next record in slist
@@ -1289,8 +1298,10 @@ impl ResolverQuery {
         let query_msg = self.create_query_message();
         let msg_to_bytes = query_msg.to_bytes();
 
+        let best_server_name = best_server_to_ask.get(&"name".to_string()).unwrap().clone();
+
         //DEBUG//
-        println!("Server to ask {}", best_server_ip);
+        println!("Server to ask {} - {}", best_server_ip, best_server_name);
         println!(
             "Asking for: {}",
             query_msg.get_question().get_qname().get_name()
@@ -1335,8 +1346,18 @@ impl ResolverQuery {
         let answer = msg_from_response.get_answer();
         let aa = msg_from_response.get_header().get_aa();
 
+        if answer.len() > 0 {
+            println!(
+                "Step 4 udp - answer type: {} - answer_len: {}",
+                answer[0].clone().get_type_code(),
+                answer.len()
+            );
+        }
+
         // Step 4a
-        if (answer.len() > 0 && rcode == 0 && answer[0].get_type_code() == self.get_stype())
+        if (answer.len() > 0
+            && rcode == 0
+            && answer[answer.len() - 1].get_type_code() == self.get_stype())
             || rcode == 3
         {
             println!("Step_4a");
@@ -1537,17 +1558,30 @@ impl ResolverQuery {
         let cname = rr_data.get_cname();
         resource_record.set_ttl(resource_record.get_ttl() + self.get_timestamp());
 
-        // Cache
-        self.remove_from_cache(cname.get_name(), resource_record.clone().get_string_type());
-        self.add_to_cache(
-            cname.get_name(),
-            resource_record,
-            3,
-            false,
-            false,
-            "".to_string(),
+        // We check if cache exist for the ip
+        let (exist_in_cache, data_ranking) = self.exist_cache_data(
+            resource_record.get_name().get_name(),
+            resource_record.clone(),
         );
-        //
+
+        if exist_in_cache == false || data_ranking > 3 {
+            if exist_in_cache == true {
+                self.remove_from_cache(
+                    resource_record.get_name().get_name(),
+                    resource_record.clone().get_string_type(),
+                );
+            }
+
+            self.add_to_cache(
+                resource_record.get_name().get_name(),
+                resource_record,
+                3,
+                false,
+                false,
+                "".to_string(),
+            );
+            //
+        }
 
         // Check if contains the answer for cname
         if answers.len() > 1 {
@@ -1868,14 +1902,12 @@ impl ResolverQuery {
 
             // Update resolver query
             let answers = response_msg.get_answer();
-            let host_name = answers[0].clone().get_name().get_name();
+            let host_name = response_msg.get_question().clone().get_qname().get_name();
 
             resolver_query_to_update
                 .get_update_slist_tcp_sender()
                 .send((host_name, answers));
         });
-
-        q_thread.join();
     }
 
     // Sends internal queries to obtain ip address for slist
@@ -1980,6 +2012,8 @@ impl ResolverQuery {
                 // Sends the query
                 internal_query.step_2_udp(socket_copy.try_clone().unwrap());
                 internal_query.step_3_udp(socket_copy, rx_update_self_slist);
+
+                break;
             }
         }
     }
@@ -2002,7 +2036,36 @@ impl ResolverQuery {
         let timeout = self.get_timeout();
         //
 
-        let mut stream = TcpStream::connect(ip_address.clone()).unwrap();
+        let split_ip_port: Vec<&str> = ip_address.split(":").collect();
+        let ip = split_ip_port[0];
+        let port = split_ip_port[1];
+        let ip_split: Vec<&str> = ip.split(".").collect();
+        let ip_v4_socket = SocketAddr::new(
+            IpAddr::V4(Ipv4Addr::new(
+                ip_split[0].parse::<u8>().unwrap(),
+                ip_split[1].parse::<u8>().unwrap(),
+                ip_split[2].parse::<u8>().unwrap(),
+                ip_split[3].parse::<u8>().unwrap(),
+            )),
+            port.parse::<u16>().unwrap(),
+        );
+
+        let mut stream_result =
+            TcpStream::connect_timeout(&ip_v4_socket, Duration::from_millis(timeout as u64));
+        let mut stream_bool: bool = match stream_result {
+            Ok(_) => true,
+            Err(_) => false,
+        };
+
+        if stream_bool == false {
+            println!("##########TCP no se pudo conectar :(");
+            //self.step_2_tcp();
+            return self.step_3_tcp(update_slist_tcp_recv);
+        }
+
+        let mut stream = stream_result.unwrap();
+
+        println!("##########TCP - Pasó connect!");
 
         // Set timeout for read
         stream.set_read_timeout(Some(Duration::from_millis(timeout as u64)));
@@ -2013,6 +2076,7 @@ impl ResolverQuery {
         match Resolver::receive_tcp_msg(stream) {
             // If there is answer
             Some(val) => {
+                println!("########TCP######## - Recibe respuesta");
                 // Parses the msg
                 let dns_response_result = DnsMessage::from_bytes(&val);
 
@@ -2025,6 +2089,14 @@ impl ResolverQuery {
                 }
 
                 let dns_response = dns_response_result.unwrap();
+
+                println!(
+                    "#############TCP############ - AA: {} - NS: {} - AD: {} - QNAME: {}",
+                    dns_response.get_answer().len(),
+                    dns_response.get_authority().len(),
+                    dns_response.get_additional().len(),
+                    dns_response.get_question().get_qname().get_name()
+                );
 
                 // Update response time in cache
                 let last_query_timestamp = self.get_last_query_timestamp();
@@ -2063,7 +2135,11 @@ impl ResolverQuery {
                 return self.step_4_tcp(dns_response, update_slist_tcp_recv);
             }
             // Sends query to another name server
-            None => return self.step_3_tcp(update_slist_tcp_recv),
+            None => {
+                println!("##########TCP no recibe respuesta :(");
+                self.step_2_tcp();
+                return self.step_3_tcp(update_slist_tcp_recv);
+            }
         };
     }
 
@@ -2191,56 +2267,52 @@ impl ResolverQuery {
         let mut counter = 0;
 
         while &best_server_ip == "" {
-            // If all records do not have ip, we update slist
-            if counter > slist.len() {
-                // Update slist
-                let mut slists_to_update = update_slist_tcp_recv.try_iter();
-                let mut next_slist_to_update = slists_to_update.next();
+            // Update slist
+            let mut slists_to_update = update_slist_tcp_recv.try_iter();
+            let mut next_slist_to_update = slists_to_update.next();
 
-                while next_slist_to_update.is_none() == false {
-                    let (host_name, answers) = next_slist_to_update.unwrap();
+            while next_slist_to_update.is_none() == false {
+                let (host_name, answers) = next_slist_to_update.unwrap();
 
-                    let mut slist_to_update = self.get_slist();
-                    let mut ns_list_to_update = slist_to_update.get_ns_list();
-                    let mut ns_index = 0;
+                let mut slist_to_update = self.get_slist();
+                let mut ns_list_to_update = slist_to_update.get_ns_list();
+                let mut ns_index = 0;
 
-                    for ns in ns_list_to_update.clone() {
-                        let answers_copy = answers.clone();
-                        let ns_name = ns.get(&"name".to_string()).unwrap().to_string();
+                for ns in ns_list_to_update.clone() {
+                    let answers_copy = answers.clone();
+                    let ns_name = ns.get(&"name".to_string()).unwrap().to_string();
 
-                        if ns_name == host_name {
-                            ns_list_to_update.remove(ns_index);
+                    if ns_name == host_name {
+                        ns_list_to_update.remove(ns_index);
 
-                            for answer in answers_copy {
-                                // Gets ip address
-                                let ip = match answer.get_rdata() {
-                                    Rdata::SomeARdata(val) => val.get_string_address(),
-                                    _ => unreachable!(),
-                                };
+                        for answer in answers_copy {
+                            // Gets ip address
+                            let ip = match answer.get_rdata() {
+                                Rdata::SomeARdata(val) => val.get_string_address(),
+                                _ => unreachable!(),
+                            };
 
-                                let mut new_ns_to_ask = HashMap::new();
+                            let mut new_ns_to_ask = HashMap::new();
 
-                                // Adds the ip to the slist record
-                                new_ns_to_ask.insert("name".to_string(), host_name.clone());
-                                new_ns_to_ask.insert("ip_address".to_string(), ip);
-                                new_ns_to_ask
-                                    .insert("response_time".to_string(), "5000".to_string());
+                            // Adds the ip to the slist record
+                            new_ns_to_ask.insert("name".to_string(), host_name.clone());
+                            new_ns_to_ask.insert("ip_address".to_string(), ip);
+                            new_ns_to_ask.insert("response_time".to_string(), "5000".to_string());
 
-                                // Adds the record to the new slist
-                                ns_list_to_update.push(new_ns_to_ask);
-                            }
+                            // Adds the record to the new slist
+                            ns_list_to_update.push(new_ns_to_ask);
                         }
-                        ns_index = ns_index + 1;
                     }
-
-                    slist_to_update.set_ns_list(ns_list_to_update);
-
-                    self.set_slist(slist_to_update);
-
-                    next_slist_to_update = slists_to_update.next();
+                    ns_index = ns_index + 1;
                 }
-                //
+
+                slist_to_update.set_ns_list(ns_list_to_update);
+
+                self.set_slist(slist_to_update);
+
+                next_slist_to_update = slists_to_update.next();
             }
+            //
 
             // Selects the next record in slist
             slist = self.get_slist();
@@ -2283,7 +2355,7 @@ impl ResolverQuery {
         let query_msg = self.create_query_message();
         let msg_to_bytes = query_msg.to_bytes();
 
-        //println!("Server to ask {}", best_server_ip);
+        println!("#########TCP######## - Server to ask {}", best_server_ip);
 
         // Update the queries count before temporary error
         self.set_queries_before_temporary_error(queries_left - 1);
@@ -2371,7 +2443,18 @@ impl ResolverQuery {
 
         // Gets the last used slist record
         let slist = self.get_slist();
-        let last_index_to_choose = (self.get_index_to_choose() - 1) % slist.len() as u16;
+        println!(
+            "Slist len: {} - index_to_choose: {}",
+            slist.len(),
+            self.get_index_to_choose()
+        );
+
+        let mut last_index_to_choose = self.get_index_to_choose();
+
+        if last_index_to_choose != 0 {
+            last_index_to_choose = (self.get_index_to_choose() - 1) % slist.len() as u16;
+        }
+
         let best_server = slist.get(last_index_to_choose);
         let best_server_hostname = best_server.get(&"name".to_string()).unwrap();
 
@@ -2490,16 +2573,30 @@ impl ResolverQuery {
 
         let cname = rr_data.get_cname();
 
-        // Cache
-        self.remove_from_cache(cname.get_name(), resource_record.clone().get_string_type());
-        self.add_to_cache(
-            cname.get_name(),
-            resource_record,
-            3,
-            false,
-            false,
-            "".to_string(),
+        // We check if cache exist for the ip
+        let (exist_in_cache, data_ranking) = self.exist_cache_data(
+            resource_record.get_name().get_name(),
+            resource_record.clone(),
         );
+
+        if exist_in_cache == false || data_ranking > 3 {
+            if exist_in_cache == true {
+                self.remove_from_cache(
+                    resource_record.get_name().get_name(),
+                    resource_record.clone().get_string_type(),
+                );
+            }
+
+            self.add_to_cache(
+                resource_record.get_name().get_name(),
+                resource_record,
+                3,
+                false,
+                false,
+                "".to_string(),
+            );
+            //
+        }
 
         // Updates sname in query
         self.set_sname(cname.get_name());

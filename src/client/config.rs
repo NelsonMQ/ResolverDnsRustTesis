@@ -13,4 +13,4 @@ pub static HOST_NAME: &'static str = "uchile.cl";
 pub static QTYPE: u16 = 1;
 pub static QCLASS: u16 = 1;
 pub static TRANSPORT: &'static str = "UDP";
-pub static TIMEOUT: u64 = 10;
+pub static TIMEOUT: u64 = 15;

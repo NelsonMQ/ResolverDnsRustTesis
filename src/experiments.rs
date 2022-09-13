@@ -46,7 +46,7 @@ pub fn response_time_experiment(filename: String, new_algorithm: bool) {
 
             // Sleep
 
-            let ten_millis = Duration::from_millis(1000);
+            let ten_millis = Duration::from_millis(2000);
 
             thread::sleep(ten_millis);
 
@@ -125,38 +125,24 @@ pub fn response_time_experiment(filename: String, new_algorithm: bool) {
 
             stream.write(&[1; 50]);
 
+            // Sleep
+            let ten_millis = Duration::from_millis(1000);
+
+            thread::sleep(ten_millis);
+
             // Save response time
 
-            let mut times_vec = response_times.get(&line).unwrap().clone();
-
-            times_vec.push(response_time.as_millis());
-
-            response_times.insert(line.clone(), times_vec.to_vec());
-
-            i = i + 1;
-        }
-    }
-
-    // Add the results to a new file
-    let mut new_file = File::create("response_time_results.txt");
-
-    // Iterate results.
-    for (domain, result_vec) in &response_times {
-        for time in result_vec {
-            //println!("Guardando: {} -- {}", domain, time);
-            let mut new_line = String::new();
-            new_line.push_str(domain.as_str());
-            new_line.push_str(" ");
-            new_line.push_str(time.to_string().as_str());
-            new_line.push_str("\n");
-
+            // Open the file to append
             let mut file = OpenOptions::new()
                 .write(true)
                 .append(true)
                 .open("response_time_results.txt")
                 .unwrap();
 
-            write!(file, "{}", new_line.as_str());
+            // Write info
+            write!(file, "{} {}\n", line.clone(), response_time.as_millis(),);
+
+            i = i + 1;
         }
     }
 }
@@ -998,7 +984,7 @@ pub fn find_affected_domains_experiment(
     // Open file
     let file = File::open(input_domains_file).expect("file not found!");
     let mut reader = BufReader::new(file);
-
+    /*
     // Run the resolver (the resolver should not save cache)
     // Channels
     let (add_sender_udp, add_recv_udp) = mpsc::channel();
@@ -1051,12 +1037,13 @@ pub fn find_affected_domains_experiment(
             false,
         );
     });
+    */
 
     // Read lines
     for line in reader.lines() {
         // Run the resolver (the resolver should not save cache)
         // Channels
-        /*
+
         let (add_sender_udp, add_recv_udp) = mpsc::channel();
         let (delete_sender_udp, delete_recv_udp) = mpsc::channel();
         let (add_sender_tcp, add_recv_tcp) = mpsc::channel();
@@ -1107,12 +1094,11 @@ pub fn find_affected_domains_experiment(
                 false,
             );
         });
-        */
 
         // Sleep
-        let ten_millis = Duration::from_millis(2000);
+        let ten_millis = Duration::from_millis(500);
 
-        //thread::sleep(ten_millis);
+        thread::sleep(ten_millis);
 
         let new_line = line.unwrap();
 
@@ -1121,7 +1107,6 @@ pub fn find_affected_domains_experiment(
 
         // Domain name
         let mut domain_name = elements[0].clone();
-        domain_name.pop();
 
         println!("Consultando: {}", domain_name.clone());
 
@@ -1130,13 +1115,25 @@ pub fn find_affected_domains_experiment(
 
         if new_algorithm {
             // Sleep
-            let ten_millis = Duration::from_millis(2000);
+            let ten_millis = Duration::from_millis(5000);
 
             thread::sleep(ten_millis);
         }
 
         // Second query to test the missconfigured domain
         let (response_time_second, _, _) = client::run_client(domain_name.clone(), 1, 1);
+
+        // Sending Udp msg to kill resolver
+        let socket = UdpSocket::bind("192.168.1.90:58402").expect("couldn't bind to address");
+        socket
+            .send_to(&[1; 50], RESOLVER_IP_PORT)
+            .expect("couldn't send data");
+
+        // Sending TCP msg to kill resolver
+
+        let mut stream = TcpStream::connect(RESOLVER_IP_PORT).expect("couldn't connect to address");
+
+        stream.write(&[1; 50]);
 
         // Open the file to append
         let mut file = OpenOptions::new()
@@ -1154,22 +1151,8 @@ pub fn find_affected_domains_experiment(
             response_time_second.as_millis()
         );
 
-        /*
-        // Sending Udp msg to kill resolver
-        let socket = UdpSocket::bind("192.168.1.90:58402").expect("couldn't bind to address");
-        socket
-            .send_to(&[1; 50], RESOLVER_IP_PORT)
-            .expect("couldn't send data");
-
-        // Sending TCP msg to kill resolver
-
-        let mut stream = TcpStream::connect(RESOLVER_IP_PORT).expect("couldn't connect to address");
-
-        stream.write(&[1; 50]);
-        */
-
         // Sleep
-        let ten_millis = Duration::from_millis(2000);
+        let ten_millis = Duration::from_millis(3000);
 
         thread::sleep(ten_millis);
     }

@@ -79,7 +79,7 @@ impl ResourceRecord {
     /// ```
     ///
 
-   pub fn new(rdata: Rdata) -> ResourceRecord {
+    pub fn new(rdata: Rdata) -> ResourceRecord {
         match rdata {
             Rdata::SomeARdata(val) => ResourceRecord {
                 name: DomainName::new(),
@@ -157,7 +157,7 @@ impl ResourceRecord {
         }
     }
 
-   /* pub fn new(rdata: Rdata) -> ResourceRecord {
+    /* pub fn new(rdata: Rdata) -> ResourceRecord {
         let mut resource_record = ResourceRecord {
             name: DomainName::new(),
             type_code: 0 as u16,
@@ -169,7 +169,6 @@ impl ResourceRecord {
 
         resource_record
     }*/
-
 
     /// Given an array of bytes, creates a new ResourceRecord
     /// # Examples
@@ -207,7 +206,7 @@ impl ResourceRecord {
 
         let (name, bytes_without_name) = domain_name_result.unwrap();
 
-        if bytes_without_name.len() < 10 {
+        if bytes_without_name.len() < 10 || name.get_name() == "" {
             return Err("Format Error");
         }
 
