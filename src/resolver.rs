@@ -313,7 +313,6 @@ impl Resolver {
 
                     // Copy sockets
                     let timeout_socket = socket.try_clone().unwrap();
-                    //let timeout_socket_2 = socket.try_clone().unwrap();
 
                     // Update cache
                     query.set_cache(self.cache.clone());
@@ -331,6 +330,7 @@ impl Resolver {
                     slist.delete(last_query_hostname);
                     query.set_slist(slist);
 
+                    // Temporary error
                     if query.get_queries_before_temporary_error() <= 0 {
                         continue;
                     } else {
@@ -339,9 +339,11 @@ impl Resolver {
                         );
                     }
 
-                    //
+                    // Update query info
+                    queries_hash_by_id.insert(query.get_main_query_id(), query.clone());
+
+                    // Send query to another name server in slist
                     thread::spawn(move || {
-                        //query.step_2_udp(timeout_socket_2);
                         query.step_3_udp(timeout_socket, rx_update_self_slist);
                     });
                 }

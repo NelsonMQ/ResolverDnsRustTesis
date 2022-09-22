@@ -1,11 +1,3 @@
-circuloverde.cl loop por buscar slist
-digitalmark.cl parecido a circuloverde.cl
-galeriapalace.cl
-galeriapatagonia.cl
-gatopersa.cl
-gensse.cl
-gibbs.cl
-gigacenter.cl
 gpschile133.cl
 ingede.cl
 innove.cl
