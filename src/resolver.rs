@@ -190,12 +190,6 @@ impl Resolver {
 
         // Receives messages
         loop {
-            for (id, query) in queries_hash_by_id.clone().into_iter() {
-                let mut query_copy = query.clone();
-                query_copy.set_cache(self.cache.clone());
-                queries_hash_by_id.insert(query_copy.get_main_query_id(), query_copy);
-            }
-
             // Updates queries
             let mut queries_to_update = rx_update_query.try_iter();
             let mut next_query_to_update = queries_to_update.next();
@@ -208,7 +202,7 @@ impl Resolver {
 
                 let id: u16 = resolver_query_to_update.get_main_query_id();
 
-                //println!("Queries to update: {}", id);
+                println!("Queries to update: {}", id);
 
                 queries_hash_by_id.insert(id, resolver_query_to_update);
 
@@ -319,7 +313,7 @@ impl Resolver {
 
                     // Copy sockets
                     let timeout_socket = socket.try_clone().unwrap();
-                    let timeout_socket_2 = socket.try_clone().unwrap();
+                    //let timeout_socket_2 = socket.try_clone().unwrap();
 
                     // Update cache
                     query.set_cache(self.cache.clone());
@@ -356,30 +350,29 @@ impl Resolver {
             ////////////////////////////////////////////////////////////////////
 
             ////////////////////////////////////////////////////////////////////
-
             /*
             /// Print cache ///
             ///
             let current_cache = self.get_cache();
             let cache_hash = current_cache.get_cache();
 
-            //println!(
-                "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    RRs en caché   %%%%%%%%%%%%%%%%%%%%%%%%%%%%"
+            println!(
+                "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    RRs en caché - Resolver UDP   %%%%%%%%%%%%%%%%%%%%%%%%%%%%"
             );
 
             for (rr_type, hash_domains) in &cache_hash {
                 for (domain_name, vector_cache) in hash_domains {
                     for rr in vector_cache {
-                        //println!("RR type: {} - Domain name: {}", rr_type, domain_name);
+                        println!("RR type: {} - Domain name: {}", rr_type, domain_name);
                     }
                 }
             }
 
             //println!("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
             ////////////////////////
-            *///
 
             println!("{}", "Waiting msg");
+            */
 
             // We receive the msg
             let mut dns_message_option =
@@ -631,6 +624,11 @@ impl Resolver {
                         let mut resolver_query =
                             queries_hash_by_id_copy.get(&answer_id).unwrap().clone();
 
+                        println!(
+                            "Resolver query Slist len: {}",
+                            resolver_query.get_slist().len()
+                        );
+
                         // Calculates the response time
                         let last_query_timestamp = resolver_query.get_last_query_timestamp();
                         let now = Utc::now();
@@ -665,7 +663,7 @@ impl Resolver {
                         //
 
                         // Updates resolver query cache
-                        resolver_query.set_cache(resolver.get_cache());
+                        //resolver_query.set_cache(resolver.get_cache());
 
                         // Set channel to update slist in resolver query
                         let (tx_update_self_slist, rx_update_self_slist) = mpsc::channel();
@@ -1107,7 +1105,7 @@ impl Resolver {
 
         // Check kill resolver msg
         for i in 0..30 {
-            if msg[i] == 0 {
+            if msg[i] != 1 {
                 kill_resolver = false;
                 break;
             }
@@ -1119,7 +1117,7 @@ impl Resolver {
 
         //// DEBUG ////
         //println!("msg len: {}", number_of_bytes_msg);
-        ////println!("msg: {:#?}", msg.clone());
+        //println!("msg: {:#?}", msg.clone());
         //////////////
 
         // If there is a empty msg
@@ -1229,7 +1227,7 @@ impl Resolver {
 
             // Check kill resolver msg
             for i in 0..30 {
-                if msg[i] == 0 {
+                if msg[i] != 1 {
                     kill_resolver = false;
                     break;
                 }

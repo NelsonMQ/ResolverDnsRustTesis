@@ -90,6 +90,7 @@ impl DnsCache {
 
                 host_rrs_vec.push(rr_cache);
                 type_hash.insert(lower_case_name, host_rrs_vec);
+                //println!("Añadiendo a cache en dns_cache - {}", domain_name.clone());
             } else {
                 let mut rr_vec = Vec::<RRCache>::new();
                 rr_vec.push(rr_cache);

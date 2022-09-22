@@ -206,7 +206,10 @@ impl ResourceRecord {
 
         let (name, bytes_without_name) = domain_name_result.unwrap();
 
-        if bytes_without_name.len() < 10 || name.get_name() == "" {
+        //println!("RR name: {}", name.get_name());
+
+        if bytes_without_name.len() < 10 {
+            //println!("Format error 1");
             return Err("Format Error");
         }
 
@@ -220,7 +223,11 @@ impl ResourceRecord {
 
         let end_rr_byte = 10 + rdlength as usize;
 
+        //println!("RR end byte: {}", end_rr_byte);
+        //println!("bytes without name: {}", bytes_without_name.len());
+
         if bytes_without_name.len() < end_rr_byte {
+            //println!("Format error 2");
             return Err("Format Error");
         }
 
@@ -235,6 +242,7 @@ impl ResourceRecord {
         match rdata_result {
             Ok(_) => {}
             Err(e) => {
+                //println!("Format error 3");
                 return Err(e);
             }
         }

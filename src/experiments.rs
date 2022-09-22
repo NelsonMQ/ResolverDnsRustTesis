@@ -1097,7 +1097,6 @@ pub fn find_affected_domains_experiment(
 
         // Sleep
         let ten_millis = Duration::from_millis(500);
-
         thread::sleep(ten_millis);
 
         let new_line = line.unwrap();
@@ -1153,7 +1152,6 @@ pub fn find_affected_domains_experiment(
 
         // Sleep
         let ten_millis = Duration::from_millis(3000);
-
         thread::sleep(ten_millis);
     }
 }

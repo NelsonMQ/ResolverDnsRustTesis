@@ -117,17 +117,17 @@ impl DomainName {
             }
         }
 
-        //println!("Domain name: {}", domain_name_str);
+        //println!("Domain name antes: {}", domain_name_str);
 
         if first_byte == 0 {
             no_domain_bytes = &no_domain_bytes[1..];
         }
 
-        //println!("Domain_name: {}", domain_name_str.clone());
-
         if domain_name_str != "" {
             domain_name_str.remove(domain_name_str.len() - 1);
         }
+
+        //println!("Domain_name despues: {}", domain_name_str.clone());
 
         // Check domain name restriction, max 255 octets
         let initial_bytes_len = bytes.len();
@@ -153,6 +153,12 @@ impl DomainName {
 
         for word in name.split(".") {
             let word_length = word.len();
+
+            // If word is ""
+            if word_length == 0 {
+                continue;
+            }
+
             bytes.push(word_length as u8);
 
             for character in word.chars() {
