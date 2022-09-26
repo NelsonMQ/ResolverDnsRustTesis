@@ -110,14 +110,14 @@ pub fn run_client(host_name: String, qclass: u16, qtype: u16) -> (Duration, Vec<
 
     // Not data found error
     if answer_count == 0 && header.get_qr() == true && header.get_aa() == true {
-        println!("Not data found");
+        //println!("Not data found");
         return (Duration::from_millis(100000), Vec::new(), false);
     } else {
         //println!("-------------------------------------");
-        println!(
-            "Answers: {} - Authority: {} - Additional: {}",
-            answer_count, authority_count, additional_count
-        );
+        //println!(
+        //    "Answers: {} - Authority: {} - Additional: {}",
+        //    answer_count, authority_count, additional_count
+        //);
         //println!("-------------------------------------");
 
         // Vec to save ns rr's data

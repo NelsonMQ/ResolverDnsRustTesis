@@ -172,6 +172,15 @@ pub fn main() {
             "affected_domains_results_na.txt".to_string(),
             true,
         );
+    } else if trim_input_line == "TEST" {
+        let mut input_line = String::new();
+        println!("Enter domain: ");
+        std::io::stdin().read_line(&mut input_line).unwrap();
+
+        let host_name = input_line.trim();
+
+        let affected = experiments::is_affected_domain(host_name.to_string());
+        println!("{}", affected);
     } else {
         // Channels
         let (add_sender_udp, add_recv_udp) = mpsc::channel();
