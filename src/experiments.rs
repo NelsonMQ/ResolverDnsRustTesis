@@ -126,7 +126,7 @@ pub fn response_time_experiment(filename: String, new_algorithm: bool) {
             stream.write(&[1; 50]);
 
             // Sleep
-            let ten_millis = Duration::from_millis(1000);
+            let ten_millis = Duration::from_millis(2000);
 
             thread::sleep(ten_millis);
 

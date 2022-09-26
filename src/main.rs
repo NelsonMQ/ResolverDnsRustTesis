@@ -57,7 +57,7 @@ pub fn main() {
 
         let file_name_experiment = input_line.trim();
 
-        experiments::response_time_experiment(file_name_experiment.to_string(), true);
+        experiments::response_time_experiment(file_name_experiment.to_string(), false);
     } else if trim_input_line == "MCC1" {
         let master_files_case_1 = [
             "root_case_1.txt".to_string(),

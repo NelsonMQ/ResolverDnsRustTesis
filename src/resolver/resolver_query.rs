@@ -459,7 +459,10 @@ impl ResolverQuery {
             }
 
             //DEBUG//
-            //println!("Found {} NS records", ns_parent_host_name.len());
+            println!(
+                "###################TCP################### - Found {} NS records",
+                ns_parent_host_name.len()
+            );
             /////////
 
             // Variable to save ips found
@@ -748,6 +751,27 @@ impl ResolverQuery {
         if USE_CACHE == true {
             // Gets the cache
             let mut cache = self.get_cache();
+            /*
+            /// Print cache ///
+            ///
+            let current_cache = self.get_cache();
+            let cache_hash = current_cache.get_cache();
+
+            println!(
+                "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    RRs en caché   - Slist initialize %%%%%%%%%%%%%%%%%%%%%%%%%%%%"
+            );
+
+            for (rr_type, hash_domains) in &cache_hash {
+                for (domain_name, vector_cache) in hash_domains {
+                    for rr in vector_cache {
+                        println!("RR type: {} - Domain name: {}", rr_type, domain_name);
+                    }
+                }
+            }
+
+            println!("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
+            ////////////////////////
+            /// */
 
             let mut rrs_cache_answer = Vec::new();
 
@@ -1048,6 +1072,11 @@ impl ResolverQuery {
                 if first_authority.get_type_code() == 6 {
                     first_authority.set_ttl(first_authority.get_ttl() + self.get_timestamp());
 
+                    println!(
+                        "NXDOMAIN - removiendo {}",
+                        msg.get_question().get_qname().get_name()
+                    );
+
                     self.remove_from_cache(
                         msg.get_question().get_qname().get_name(),
                         "NS".to_string(),
@@ -1074,7 +1103,7 @@ impl ResolverQuery {
                     );
 
                     self.add_to_cache(
-                        first_authority.get_name().get_name(),
+                        msg.get_question().get_qname().get_name(),
                         first_authority.clone(),
                         3,
                         true,
@@ -1083,7 +1112,7 @@ impl ResolverQuery {
                     );
 
                     self.add_to_cache(
-                        first_authority.get_name().get_name(),
+                        msg.get_question().get_qname().get_name(),
                         first_authority.clone(),
                         3,
                         true,
@@ -1092,7 +1121,7 @@ impl ResolverQuery {
                     );
 
                     self.add_to_cache(
-                        first_authority.get_name().get_name(),
+                        msg.get_question().get_qname().get_name(),
                         first_authority.clone(),
                         3,
                         true,
@@ -1101,7 +1130,7 @@ impl ResolverQuery {
                     );
 
                     self.add_to_cache(
-                        first_authority.get_name().get_name(),
+                        msg.get_question().get_qname().get_name(),
                         first_authority,
                         3,
                         true,
@@ -1983,6 +2012,7 @@ impl ResolverQuery {
                 }
                 if (msg_response.get_header().get_rcode() != 0) {
                     slist.delete(qname.clone());
+                    println!("Recibimos NXDOMAIN en consulta slist: {}", qname.clone());
                     continue;
                 }
             }
