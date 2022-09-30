@@ -63,6 +63,7 @@ impl ARdata {
         a_rdata
     }
 
+    // Creates a new RR from a master file
     pub fn rr_from_master_file(
         mut values: SplitWhitespace,
         ttl: u32,
@@ -99,6 +100,7 @@ impl ARdata {
         resource_record
     }
 
+    // Gets the String IP address
     pub fn get_string_address(&self) -> String {
         let ip = self.get_address();
 

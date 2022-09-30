@@ -50,8 +50,10 @@ impl Question {
         bytes: &'a [u8],
         full_msg: &'a [u8],
     ) -> Result<(Question, &'a [u8]), &'static str> {
+        // Get domain name
         let domain_name_result = DomainName::from_bytes(bytes, full_msg);
 
+        // Checks if there was an error
         match domain_name_result {
             Ok(_) => {}
             Err(e) => {
@@ -65,9 +67,11 @@ impl Question {
             return Err("Format Error");
         }
 
+        // Gets qtype and qclass
         let qtype = ((bytes_without_name[0] as u16) << 8) | bytes_without_name[1] as u16;
         let qclass = ((bytes_without_name[2] as u16) << 8) | bytes_without_name[3] as u16;
 
+        // Creates new question
         let mut question = Question::new();
         question.set_qname(qname);
         question.set_qtype(qtype);
@@ -134,14 +138,17 @@ impl Question {
 
 // Setters
 impl Question {
+    // Sets qname
     pub fn set_qname(&mut self, qname: DomainName) {
         self.qname = qname;
     }
 
+    // Sets qtype
     pub fn set_qtype(&mut self, qtype: u16) {
         self.qtype = qtype;
     }
 
+    // Sets qclass
     pub fn set_qclass(&mut self, qclass: u16) {
         self.qclass = qclass;
     }
@@ -149,14 +156,17 @@ impl Question {
 
 // Getters
 impl Question {
+    // Gets qname
     pub fn get_qname(&self) -> DomainName {
         self.qname.clone()
     }
 
+    // Gets qtype
     pub fn get_qtype(&self) -> u16 {
         self.qtype
     }
 
+    // Gets qclass
     pub fn get_qclass(&self) -> u16 {
         self.qclass
     }

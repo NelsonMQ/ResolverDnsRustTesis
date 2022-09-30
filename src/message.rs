@@ -78,6 +78,7 @@ impl DnsMessage {
         dns_message
     }
 
+    // Creates an empty dnsmessage
     pub fn new() -> Self {
         let msg = DnsMessage {
             header: Header::new(),
@@ -90,6 +91,7 @@ impl DnsMessage {
         msg
     }
 
+    // Creates a response dns message
     pub fn new_response_message(
         qname: String,
         qtype: u16,
@@ -128,6 +130,7 @@ impl DnsMessage {
         dns_message
     }
 
+    // Creates a soa query message
     pub fn soa_rr_query_msg(zone: NSZone) -> Self {
         let mut rng = thread_rng();
         let msg_id = rng.gen();
@@ -139,6 +142,7 @@ impl DnsMessage {
         msg
     }
 
+    // Creates a format error message
     pub fn format_error_msg() -> Self {
         let mut msg = DnsMessage::new();
         let mut header = msg.get_header();
@@ -149,6 +153,7 @@ impl DnsMessage {
         msg
     }
 
+    // Creates an axfr query message
     pub fn axfr_query_message(qname: String) -> Self {
         let mut rng = thread_rng();
         let msg_id = rng.gen();
@@ -158,6 +163,7 @@ impl DnsMessage {
         msg
     }
 
+    // Creates a not implemented message
     pub fn not_implemented_msg(mut msg: DnsMessage) -> Self {
         let mut header = msg.get_header();
         header.set_rcode(4);
@@ -275,6 +281,7 @@ impl DnsMessage {
         Ok(dns_message)
     }
 
+    // Converts a DnsMessage to bytes
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut header_bytes = self.get_header().to_bytes().to_vec();
         let mut question_bytes = self.get_question().to_bytes();
@@ -305,6 +312,7 @@ impl DnsMessage {
         dns_msg_bytes
     }
 
+    // Update the header
     pub fn update_header_counters(&mut self) {
         let answer = self.get_answer();
         let authority = self.get_authority();
@@ -318,6 +326,7 @@ impl DnsMessage {
         self.set_header(header);
     }
 
+    // Adds an answer
     pub fn add_answers(&mut self, mut answers: Vec<ResourceRecord>) {
         let mut msg_answers = self.get_answer();
 
@@ -325,6 +334,7 @@ impl DnsMessage {
         self.set_answer(msg_answers);
     }
 
+    // Adds an authority
     pub fn add_authorities(&mut self, mut authorities: Vec<ResourceRecord>) {
         let mut msg_authorities = self.get_authority();
 
@@ -332,6 +342,7 @@ impl DnsMessage {
         self.set_answer(msg_authorities);
     }
 
+    // Adds an additional
     pub fn add_additionals(&mut self, mut additionals: Vec<ResourceRecord>) {
         let mut msg_additionals = self.get_additional();
 
@@ -372,6 +383,7 @@ impl DnsMessage {
         self.get_header().get_id()
     }
 
+    // Gets the String qtype
     pub fn get_question_qtype(&self) -> String {
         let qtype = match self.get_question().get_qtype() {
             1 => "A".to_string(),

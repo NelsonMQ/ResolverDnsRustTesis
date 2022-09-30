@@ -109,6 +109,7 @@ impl Header {
         let nscount = ((bytes[8] as u16) << 8) | bytes[9] as u16;
         let arcount = ((bytes[10] as u16) << 8) | bytes[11] as u16;
 
+        // Creates the new Header structure
         let mut header = Header::new();
         header.set_id(id);
         header.set_qr(qr != 0);
@@ -338,6 +339,7 @@ impl Header {
     pub fn to_bytes(&self) -> [u8; 12] {
         let mut header_bytes: [u8; 12] = [0; 12];
 
+        // Gets the bytes
         header_bytes[0] = self.get_first_id_byte();
         header_bytes[1] = self.get_second_id_byte();
         header_bytes[2] = self.get_first_flags_byte();

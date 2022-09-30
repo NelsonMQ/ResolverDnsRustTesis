@@ -12,7 +12,9 @@ pub struct RRCache {
     last_use: DateTime<Utc>,
     // Data ranking from RFC 2181
     data_ranking: u8,
+    // NXDOMAIN
     nxdomain: bool,
+    // NODATA
     no_data: bool,
 }
 

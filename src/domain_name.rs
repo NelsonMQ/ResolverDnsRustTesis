@@ -29,7 +29,7 @@ impl DomainName {
         domain_name
     }
 
-    /// Given an array of bytes, creates a new DomainName and returns the unused bytes
+    /// Given an array of bytes without offset, creates a new DomainName and returns the unused bytes
     pub fn from_bytes_no_offset(bytes: &[u8]) -> String {
         let mut name = String::from("");
         let mut index = 0;
@@ -50,6 +50,7 @@ impl DomainName {
         name
     }
 
+    // Creates a DomainName from bytes
     pub fn from_bytes<'a>(
         bytes: &'a [u8],
         full_msg: &'a [u8],
@@ -101,23 +102,14 @@ impl DomainName {
                 // Checks label restrictions
                 let check_label = NSZone::check_label_name(label_string.clone());
 
-                /*
-                if check_label == false {
-                    return Err("Format Error");
-                }
-                */
-
                 domain_name_str.push_str(&label_string);
                 domain_name_str.push_str(".");
 
-                //println!("domain name: {}", domain_name_str.clone());
                 no_domain_bytes = &no_domain_bytes[(first_byte + 1) as usize..];
 
                 first_byte = no_domain_bytes[0].clone();
             }
         }
-
-        //println!("Domain name antes: {}", domain_name_str);
 
         if first_byte == 0 {
             no_domain_bytes = &no_domain_bytes[1..];
@@ -126,8 +118,6 @@ impl DomainName {
         if domain_name_str != "" {
             domain_name_str.remove(domain_name_str.len() - 1);
         }
-
-        //println!("Domain_name despues: {}", domain_name_str.clone());
 
         // Check domain name restriction, max 255 octets
         let initial_bytes_len = bytes.len();
@@ -171,6 +161,7 @@ impl DomainName {
         bytes
     }
 
+    // Creates a Domain Name from a masterfile
     pub fn from_master_file(mut name: String, host_name: String) -> Self {
         let end_dot = name.ends_with(".");
 

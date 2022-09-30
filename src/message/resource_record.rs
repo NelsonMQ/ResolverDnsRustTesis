@@ -157,19 +157,6 @@ impl ResourceRecord {
         }
     }
 
-    /* pub fn new(rdata: Rdata) -> ResourceRecord {
-        let mut resource_record = ResourceRecord {
-            name: DomainName::new(),
-            type_code: 0 as u16,
-            class: 0 as u16,
-            ttl: 0 as u32,
-            rdlength: 0 as u16,
-            rdata: rdata,
-        };
-
-        resource_record
-    }*/
-
     /// Given an array of bytes, creates a new ResourceRecord
     /// # Examples
     /// ```
@@ -206,10 +193,7 @@ impl ResourceRecord {
 
         let (name, bytes_without_name) = domain_name_result.unwrap();
 
-        //println!("RR name: {}", name.get_name());
-
         if bytes_without_name.len() < 10 {
-            //println!("Format error 1");
             return Err("Format Error");
         }
 
@@ -223,11 +207,7 @@ impl ResourceRecord {
 
         let end_rr_byte = 10 + rdlength as usize;
 
-        //println!("RR end byte: {}", end_rr_byte);
-        //println!("bytes without name: {}", bytes_without_name.len());
-
         if bytes_without_name.len() < end_rr_byte {
-            //println!("Format error 2");
             return Err("Format Error");
         }
 
@@ -242,7 +222,6 @@ impl ResourceRecord {
         match rdata_result {
             Ok(_) => {}
             Err(e) => {
-                //println!("Format error 3");
                 return Err(e);
             }
         }
@@ -409,6 +388,7 @@ impl ResourceRecord {
         rr_bytes
     }
 
+    // Gets the String RR type
     pub fn get_string_type(&self) -> String {
         let qtype = match self.get_type_code() {
             1 => "A".to_string(),

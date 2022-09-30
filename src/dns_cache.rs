@@ -1,8 +1,7 @@
+use crate::config::CACHE_MAX_SIZE;
 use crate::message::rdata::Rdata;
 use crate::message::resource_record::ResourceRecord;
 use crate::rr_cache::RRCache;
-
-use crate::config::CACHE_MAX_SIZE;
 
 use chrono::prelude::*;
 use std::collections::HashMap;
@@ -12,7 +11,9 @@ use std::collections::HashMap;
 pub struct DnsCache {
     // first hash by type, then by hostname
     cache: HashMap<String, HashMap<String, Vec<RRCache>>>,
+    // Cache max size
     max_size: u32,
+    // Cache size
     size: u32,
 }
 
@@ -90,7 +91,6 @@ impl DnsCache {
 
                 host_rrs_vec.push(rr_cache);
                 type_hash.insert(lower_case_name, host_rrs_vec);
-                //println!("Añadiendo a cache en dns_cache - {}", domain_name.clone());
             } else {
                 let mut rr_vec = Vec::<RRCache>::new();
                 rr_vec.push(rr_cache);
@@ -188,12 +188,6 @@ impl DnsCache {
                 let first_ns_cache = ns_parent_host_name[0].clone();
 
                 if first_ns_cache.get_nxdomain() == true {
-                    println!(
-                        "nxdomain = {}, no_data = {}",
-                        first_ns_cache.get_nxdomain(),
-                        first_ns_cache.get_no_data()
-                    );
-
                     return (true, ns_parent_host_name);
                 }
             }
@@ -319,18 +313,6 @@ impl DnsCache {
                 cache.insert(rr_type, new_x);
 
                 self.set_cache(cache);
-            }
-        }
-    }
-
-    pub fn print(&self) {
-        let cache = self.get_cache();
-
-        for (key, val) in cache.iter() {
-            //println!("Type: {}", key);
-
-            for (key2, val2) in val.iter() {
-                //println!("Host Name: {}", key2);
             }
         }
     }

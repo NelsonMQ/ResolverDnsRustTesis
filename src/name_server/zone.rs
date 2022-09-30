@@ -5,12 +5,17 @@ use crate::name_server::master_file::MasterFile;
 #[derive(Clone)]
 /// Structs that represents data from a zone
 pub struct NSZone {
+    // Domain name in node
     name: String,
     // Ip to ask the SOA RR data for refreshing
     ip_address_for_refresh_zone: String,
+    // RRs in node
     value: Vec<ResourceRecord>,
+    // Children zones
     children: Vec<NSZone>,
+    // If the node is a subzone
     subzone: bool,
+    // Glue records for the zone
     glue_rrs: Vec<ResourceRecord>,
     // Zone class
     class: u16,
@@ -19,6 +24,7 @@ pub struct NSZone {
 }
 
 impl NSZone {
+    // Creates an empty NSZone
     pub fn new() -> Self {
         let ns_zone = NSZone {
             name: "".to_string(),
@@ -34,17 +40,11 @@ impl NSZone {
         ns_zone
     }
 
+    // Creates a zone from a master file
     pub fn from_file(file_name: String, ip_address_for_refresh_zone: String) -> Self {
         let master_file_parsed = MasterFile::from_file(file_name);
         let mut origin = master_file_parsed.get_origin();
         let mut rrs = master_file_parsed.get_rrs();
-
-        for (name, rrs_vec) in &rrs {
-            for rr in rrs_vec {
-                //println!("{} {}", name, rr.get_string_type());
-            }
-        }
-
         let origin_rrs = rrs.remove(&origin).unwrap();
 
         let mut ns_zone = NSZone::new();
@@ -54,15 +54,13 @@ impl NSZone {
         ns_zone.set_class_str(master_file_parsed.get_class_default());
 
         for (key, value) in rrs.iter() {
-            //println!("{} - {}", key.clone(), value.len());
             ns_zone.add_node(key.clone(), value.clone());
         }
-
-        ns_zone.print_zone();
 
         ns_zone
     }
 
+    // Creates a zone from an axfr message
     pub fn from_axfr_msg(msg: DnsMessage) -> Self {
         let answers = msg.get_answer();
         let mut new_zone = NSZone::new();
@@ -103,11 +101,11 @@ impl NSZone {
         new_zone
     }
 
+    // Checks if a child zone exists
     pub fn exist_child(&self, name: String) -> bool {
         let children = self.get_children();
 
         for child in children {
-            //println!("Child name: {}", child.get_name());
             if child.get_name() == name {
                 return true;
             }
@@ -116,6 +114,7 @@ impl NSZone {
         return false;
     }
 
+    // Gets a child zone
     pub fn get_child(&self, name: String) -> (NSZone, i32) {
         let children = self.get_children();
 
@@ -134,10 +133,11 @@ impl NSZone {
 
         (child_ns, index)
     }
-
+    // Adds a node to the zone
     fn add_node(&mut self, host_name: String, rrs: Vec<ResourceRecord>) {
         let mut children = self.get_children();
         let mut labels: Vec<&str> = host_name.split(".").collect();
+
         // Check if the total number of octets is 255 or less
         if host_name.len() - labels.len() + 1 <= 255 {
             labels.reverse();
@@ -177,8 +177,6 @@ impl NSZone {
                 let mut new_ns_zone = NSZone::new();
                 new_ns_zone.set_name(label.to_string());
 
-                //println!("RRs len: {}", rrs.len());
-
                 if labels.len() == 0 {
                     new_ns_zone.set_value(rrs.clone());
 
@@ -206,6 +204,7 @@ impl NSZone {
         }
     }
 
+    // Checks if there are NS records only
     fn check_rrs_only_ns(&self, rrs: Vec<ResourceRecord>) -> bool {
         for rr in rrs {
             let rr_type = rr.get_type_code();
@@ -218,23 +217,7 @@ impl NSZone {
         return true;
     }
 
-    pub fn print_zone(&self) {
-        let name = self.get_name();
-        let values = self.get_value();
-        let children = self.get_children();
-
-        //println!("Name: {}", name);
-        //println!("Subzone: {}", self.get_subzone());
-
-        for val in values {
-            //println!("  Type: {}", val.get_type_code());
-        }
-
-        for child in children {
-            child.print_zone();
-        }
-    }
-
+    // Returns the RRs from an especific type
     pub fn get_rrs_by_type(&self, rr_type: u16) -> Vec<ResourceRecord> {
         let rrs = self.get_value();
 
@@ -244,15 +227,8 @@ impl NSZone {
 
         let mut rr_by_type = Vec::<ResourceRecord>::new();
 
-        //println!("RRs len zone: {}", rrs.len());
-
         for rr in rrs {
             if rr.get_type_code() == rr_type {
-                /*println!(
-                    "----------------------rr name: {}",
-                    rr.get_name().get_name()
-                );*/
-
                 rr_by_type.push(rr);
             }
         }
@@ -260,6 +236,7 @@ impl NSZone {
         return rr_by_type;
     }
 
+    // Gets all RRs from a node
     pub fn get_all_rrs(&self) -> Vec<ResourceRecord> {
         let mut rrs = self.get_value();
         let children = self.get_children();
@@ -271,6 +248,7 @@ impl NSZone {
         rrs
     }
 
+    // Checks the label name
     pub fn check_label_name(name: String) -> bool {
         if name.len() > 63 || name.len() == 0 {
             return false;
@@ -297,6 +275,7 @@ impl NSZone {
         self.value = value;
     }
 
+    // Sets ip address for refresh zone
     pub fn set_ip_address_for_refresh_zone(&mut self, ip_address_for_refresh_zone: String) {
         self.ip_address_for_refresh_zone = ip_address_for_refresh_zone;
     }
@@ -366,6 +345,7 @@ impl NSZone {
         self.value.clone()
     }
 
+    // Gets the ip address for refresh
     pub fn get_ip_address_for_refresh_zone(&self) -> String {
         self.ip_address_for_refresh_zone.clone()
     }

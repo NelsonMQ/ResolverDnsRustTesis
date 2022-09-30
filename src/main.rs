@@ -3,7 +3,6 @@ pub mod config;
 pub mod dns_cache;
 pub mod domain_name;
 pub mod experiments;
-pub mod global_tests;
 pub mod message;
 pub mod name_server;
 pub mod resolver;
@@ -270,13 +269,11 @@ pub fn main() {
             );
         } else if trim_input_line == "N" {
             let mut input_line = String::new();
-            //println!("Enter Ip and port: ");
             std::io::stdin().read_line(&mut input_line).unwrap();
 
             let trim_input_line = input_line.trim();
 
             let mut name_server = NameServer::new(
-                false,
                 delete_sender_udp.clone(),
                 delete_sender_tcp.clone(),
                 add_sender_ns_udp.clone(),
@@ -286,7 +283,7 @@ pub fn main() {
             );
 
             let mut input_line = String::new();
-            //println!("Insert MasterFile name: ");
+            println!("Insert MasterFile name: ");
             std::io::stdin().read_line(&mut input_line).unwrap();
 
             let master_file = input_line.trim();

@@ -142,6 +142,7 @@ impl Slist {
         ns_list[0].clone()
     }
 
+    // Gets the i element from slist
     pub fn get(&self, index: u16) -> HashMap<String, String> {
         let ns_list = self.get_ns_list();
 

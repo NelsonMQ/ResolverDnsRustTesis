@@ -76,6 +76,7 @@ impl PtrRdata {
         ptr_rdata
     }
 
+    // Creates an RR from a master file
     pub fn rr_from_master_file(
         mut values: SplitWhitespace,
         ttl: u32,

@@ -216,6 +216,7 @@ impl SoaRdata {
         soa_rdata
     }
 
+    // Creates a RR from a master file
     pub fn rr_from_master_file(
         mut values: SplitWhitespace,
         mut ttl: u32,

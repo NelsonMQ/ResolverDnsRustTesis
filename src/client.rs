@@ -37,33 +37,18 @@ pub fn run_client(host_name: String, qclass: u16, qtype: u16) -> (Duration, Vec<
         let socket = UdpSocket::bind(CLIENT_IP_PORT).expect("No connection");
         let msg_to_bytes = query_msg.to_bytes();
 
-        //println!("msg: {:#?}", msg_to_bytes);
-
         socket.send_to(&msg_to_bytes, RESOLVER_IP_PORT);
-
-        // Hashmap to save incomplete messages
-        let mut messages = HashMap::<u16, DnsMessage>::new();
-
         socket.set_read_timeout(Some(Duration::from_millis(TIMEOUT * 1000)));
 
-        loop {
-            let response_result =
-                Resolver::receive_udp_msg(socket.try_clone().unwrap(), messages.clone());
-            let messages_len = messages.len();
+        let response_result = Resolver::receive_udp_msg(socket.try_clone().unwrap());
 
-            match response_result {
-                Some(val) => {
-                    dns_message = val.0;
-
-                    break;
-                }
-                None => {
-                    if messages_len == messages.len() {
-                        //println!("Temporary Error");
-                        return (Duration::from_millis(0), Vec::new(), true);
-                    }
-                    continue;
-                }
+        match response_result {
+            Some(val) => {
+                dns_message = val.0;
+            }
+            None => {
+                // Temporary Error
+                return (Duration::from_millis(0), Vec::new(), true);
             }
         }
     }
@@ -81,7 +66,6 @@ pub fn run_client(host_name: String, qclass: u16, qtype: u16) -> (Duration, Vec<
         let full_msg = [&tcp_bytes_length, bytes.as_slice()].concat();
 
         stream.set_read_timeout(Some(Duration::from_millis(TIMEOUT * 1000)));
-
         stream.write(&full_msg);
 
         match Resolver::receive_tcp_msg(stream) {
@@ -89,14 +73,13 @@ pub fn run_client(host_name: String, qclass: u16, qtype: u16) -> (Duration, Vec<
                 dns_message = DnsMessage::from_bytes(&val).unwrap();
             }
             None => {
-                //println!("Temporary Error");
+                // Temporary Error;
                 return (Duration::from_millis(0), Vec::new(), true);
             }
         }
     }
 
     let elapsed = now.elapsed();
-    //println!("Elapsed: {:.2?}", elapsed);
 
     // Get the message and print the information
     let header = dns_message.get_header();
@@ -110,139 +93,20 @@ pub fn run_client(host_name: String, qclass: u16, qtype: u16) -> (Duration, Vec<
 
     // Not data found error
     if answer_count == 0 && header.get_qr() == true && header.get_aa() == true {
-        //println!("Not data found");
         return (Duration::from_millis(100000), Vec::new(), false);
     } else {
-        //println!("-------------------------------------");
-        //println!(
-        //    "Answers: {} - Authority: {} - Additional: {}",
-        //    answer_count, authority_count, additional_count
-        //);
-        //println!("-------------------------------------");
-
         // Vec to save ns rr's data
         let mut answer_ns_data_vec = Vec::new();
 
         for answer in answers {
             match answer.get_rdata() {
-                Rdata::SomeARdata(val) => {
-                    //println!("Ip Address: {}", val.get_string_address())
-                }
-                Rdata::SomeAChRdata(val) => {
-                    /*println!(
-                        "Domain name: {} - Ch Ip address: {}",
-                        val.get_domain_name().get_name(),
-                        val.get_ch_adress()
-                    )*/
-                }
                 Rdata::SomeNsRdata(val) => {
                     answer_ns_data_vec.push(val.get_nsdname().get_name());
-                    //println!("Name Server: {}", val.get_nsdname().get_name())
                 }
-                Rdata::SomeCnameRdata(val) => {
-                    //println!("Cname: {}", val.get_cname().get_name())
-                }
-                Rdata::SomeHinfoRdata(val) => {
-                    //println!("CPU: {} - OS: {}", val.get_cpu(), val.get_os())
-                }
-                Rdata::SomeMxRdata(val) => {
-                    /*println!(
-                        "Preference: {} - Exchange: {}",
-                        val.get_preference(),
-                        val.get_exchange().get_name()
-                    )*/
-                }
-                Rdata::SomePtrRdata(val) => {
-                    //println!("Ptr name: {}", val.get_ptrdname().get_name())
-                }
-                Rdata::SomeSoaRdata(val) => {
-                    //println!("Mname: {} - Rname: {} - Serial: {} - Refresh: {} - Retry: {} - Expire: {} - Minimum: {}", val.get_mname().get_name(), val.get_rname().get_name(), val.get_serial(), val.get_refresh(), val.get_retry(), val.get_expire(), val.get_minimum())
-                }
-                Rdata::SomeTxtRdata(val) => {
-                    //println!("Txt: {:#?}", val.get_text())
-                }
+                _ => {}
             }
         }
 
-        for answer in authority {
-            match answer.get_rdata() {
-                Rdata::SomeARdata(val) => {
-                    //println!("Ip Address: {}", val.get_string_address())
-                }
-                Rdata::SomeAChRdata(val) => {
-                    /*println!(
-                        "Domain name: {} - Ch Ip address: {}",
-                        val.get_domain_name().get_name(),
-                        val.get_ch_adress()
-                    )*/
-                }
-                Rdata::SomeNsRdata(val) => {
-                    //println!("Name Server: {}", val.get_nsdname().get_name())
-                }
-                Rdata::SomeCnameRdata(val) => {
-                    //println!("Cname: {}", val.get_cname().get_name())
-                }
-                Rdata::SomeHinfoRdata(val) => {
-                    //println!("CPU: {} - OS: {}", val.get_cpu(), val.get_os())
-                }
-                Rdata::SomeMxRdata(val) => {
-                    /*println!(
-                        "Preference: {} - Exchange: {}",
-                        val.get_preference(),
-                        val.get_exchange().get_name()
-                    )*/
-                }
-                Rdata::SomePtrRdata(val) => {
-                    //println!("Ptr name: {}", val.get_ptrdname().get_name())
-                }
-                Rdata::SomeSoaRdata(val) => {
-                    //println!("Mname: {} - Rname: {} - Serial: {} - Refresh: {} - Retry: {} - Expire: {} - Minimum: {}", val.get_mname().get_name(), val.get_rname().get_name(), val.get_serial(), val.get_refresh(), val.get_retry(), val.get_expire(), val.get_minimum())
-                }
-                Rdata::SomeTxtRdata(val) => {
-                    //println!("Txt: {:#?}", val.get_text())
-                }
-            }
-        }
-
-        for answer in additional {
-            match answer.get_rdata() {
-                Rdata::SomeARdata(val) => {
-                    //println!("Ip Address: {}", val.get_string_address())
-                }
-                Rdata::SomeAChRdata(val) => {
-                    /*println!(
-                        "Domain name: {} - Ch Ip address: {}",
-                        val.get_domain_name().get_name(),
-                        val.get_ch_adress()
-                    )*/
-                }
-                Rdata::SomeNsRdata(val) => {
-                    //println!("Name Server: {}", val.get_nsdname().get_name())
-                }
-                Rdata::SomeCnameRdata(val) => {
-                    //println!("Cname: {}", val.get_cname().get_name())
-                }
-                Rdata::SomeHinfoRdata(val) => {
-                    //println!("CPU: {} - OS: {}", val.get_cpu(), val.get_os())
-                }
-                Rdata::SomeMxRdata(val) => {
-                    /*println!(
-                        "Preference: {} - Exchange: {}",
-                        val.get_preference(),
-                        val.get_exchange().get_name()
-                    )*/
-                }
-                Rdata::SomePtrRdata(val) => {
-                    //println!("Ptr name: {}", val.get_ptrdname().get_name())
-                }
-                Rdata::SomeSoaRdata(val) => {
-                    //println!("Mname: {} - Rname: {} - Serial: {} - Refresh: {} - Retry: {} - Expire: {} - Minimum: {}", val.get_mname().get_name(), val.get_rname().get_name(), val.get_serial(), val.get_refresh(), val.get_retry(), val.get_expire(), val.get_minimum())
-                }
-                Rdata::SomeTxtRdata(val) => {
-                    //println!("Txt: {:#?}", val.get_text())
-                }
-            }
-        }
         return (elapsed, answer_ns_data_vec, false);
     }
 }

@@ -19,10 +19,15 @@ use std::str::SplitWhitespace;
 #[derive(Clone)]
 /// Structs that represents data from a master file
 pub struct MasterFile {
+    // Master file origin domain
     origin: String,
+    // Last host in master file
     last_host: String,
+    // RRs from master file
     rrs: HashMap<String, Vec<ResourceRecord>>,
+    // Default class
     class_default: String,
+    // Default TTL
     ttl_default: u32,
 }
 
@@ -211,8 +216,6 @@ impl MasterFile {
         while value != "" {
             let value_type = self.get_value_type(value.to_string());
 
-            //println!("Name: {}, value: {}", host_name.clone(), value_type);
-
             if value_type == 0 {
                 // TTL
                 ttl = value.parse::<u32>().unwrap();
@@ -286,13 +289,6 @@ impl MasterFile {
             "HS" => 4,
             _ => unreachable!(),
         };
-
-        /*println!(
-            "Full host name: {}*****************************",
-            full_host_name.clone()
-        );*/
-
-        //println!("********Host name: {}", host_name.clone());
 
         let resource_record = match rr_type.as_str() {
             "A" => {
@@ -373,39 +369,6 @@ impl MasterFile {
 
         self.set_rrs(rrs);
     }
-
-    /*
-    For future implementations
-    fn process_backslashs(&mut self, line: String) {
-        // is there backslash?
-        let index = match line.find("\\") {
-            Some(val) => val,
-            None => -1,
-        };
-
-        if index == -1 {
-            return line;
-        }
-
-        let next_char_to_backslash = line.get(index + 1..index + 2);
-
-        let parse_to_numb = next_char_to_backslash.parse::<f64>();
-
-        let is_numb = match parse_to_numb {
-            Ok(ok) => 1,
-            Err(e) => 0,
-        };
-
-        if is_numb == 1 {
-            let oct_number_str = line.get(index + 1..index + 4);
-            let oct_number = oct_number_str.parse::<u32>().unwrap();
-        }
-
-        line.replace("\\", "");
-
-        return line;
-    }
-    */
 }
 
 // Getters

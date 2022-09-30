@@ -31,7 +31,6 @@ pub enum Rdata {
     SomeTxtRdata(TxtRdata),
     SomeCnameRdata(CnameRdata),
     SomeHinfoRdata(HinfoRdata),
-    //////// Define here more rdata types ////////
 }
 
 impl ToBytes for Rdata {

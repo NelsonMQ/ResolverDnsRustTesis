@@ -81,6 +81,7 @@ impl FromBytes<Result<Self, &'static str>> for AChRdata {
 }
 
 impl AChRdata {
+    // Creates a new AChRdata
     pub fn new() -> Self {
         let a_ch_rdata = AChRdata {
             domain_name: DomainName::new(),
@@ -90,6 +91,7 @@ impl AChRdata {
         a_ch_rdata
     }
 
+    // Creates a new RR from a master file
     pub fn rr_from_master_file(
         mut values: SplitWhitespace,
         ttl: u32,
@@ -127,10 +129,12 @@ impl AChRdata {
 
 // Getters
 impl AChRdata {
+    // Gets the domain name
     pub fn get_domain_name(&self) -> DomainName {
         self.domain_name.clone()
     }
 
+    // Gets the ch address
     pub fn get_ch_adress(&self) -> u16 {
         self.ch_address
     }
@@ -138,10 +142,12 @@ impl AChRdata {
 
 // Setters
 impl AChRdata {
+    // Sets the domain name
     pub fn set_domain_name(&mut self, domain_name: DomainName) {
         self.domain_name = domain_name;
     }
 
+    // Sets the ch address
     pub fn set_ch_address(&mut self, ch_address: u16) {
         self.ch_address = ch_address;
     }
