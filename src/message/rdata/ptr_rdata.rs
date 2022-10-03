@@ -86,7 +86,7 @@ impl PtrRdata {
     ) -> ResourceRecord {
         let mut ptr_rdata = PtrRdata::new();
         let name = values.next().unwrap();
-        let mut domain_name = DomainName::from_master_file(name.to_string(), origin);
+        let domain_name = DomainName::from_master_file(name.to_string(), origin);
 
         ptr_rdata.set_ptrdname(domain_name);
 
@@ -124,10 +124,6 @@ impl PtrRdata {
 }
 
 mod test {
-    use crate::domain_name::DomainName;
-    use crate::message::rdata::ptr_rdata::PtrRdata;
-    use crate::message::resource_record::{FromBytes, ToBytes};
-
     #[test]
     fn constructor_test() {
         let ptr_rdata = PtrRdata::new();

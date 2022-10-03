@@ -26,7 +26,7 @@ impl ToBytes for ARdata {
 
 impl FromBytes<Result<Self, &'static str>> for ARdata {
     /// Creates a new ARdata from an array of bytes
-    fn from_bytes(bytes: &[u8], full_msg: &[u8]) -> Result<Self, &'static str> {
+    fn from_bytes(bytes: &[u8], _full_msg: &[u8]) -> Result<Self, &'static str> {
         let bytes_len = bytes.len();
 
         if bytes_len < 4 {
@@ -134,9 +134,6 @@ impl ARdata {
 }
 
 mod test {
-    use crate::message::rdata::a_rdata::ARdata;
-    use crate::message::resource_record::{FromBytes, ToBytes};
-
     #[test]
     fn constructor_test() {
         let a_rdata = ARdata::new();

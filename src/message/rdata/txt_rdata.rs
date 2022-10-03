@@ -37,13 +37,13 @@ impl ToBytes for TxtRdata {
 
 impl FromBytes<Result<Self, &'static str>> for TxtRdata {
     /// Creates a new TxtRdata from an array of bytes
-    fn from_bytes(bytes: &[u8], full_msg: &[u8]) -> Result<Self, &'static str> {
+    fn from_bytes(bytes: &[u8], _full_msg: &[u8]) -> Result<Self, &'static str> {
         let mut string = String::from("");
         let mut txt: Vec<String> = Vec::new();
         let mut i = 0;
 
         while i < bytes.len() {
-            let mut lenght_octet = bytes[i];
+            let lenght_octet = bytes[i];
             i += 1;
             for _chars in 0..lenght_octet {
                 let byte = bytes[i];
@@ -77,7 +77,7 @@ impl TxtRdata {
     }
 
     pub fn rr_from_master_file(
-        mut values: SplitWhitespace,
+        values: SplitWhitespace,
         ttl: u32,
         class: u16,
         host_name: String,
@@ -88,7 +88,7 @@ impl TxtRdata {
         }
 
         let rd_lenght = text.len();
-        let mut txt_rdata = TxtRdata::new(text);
+        let txt_rdata = TxtRdata::new(text);
 
         let rdata = Rdata::SomeTxtRdata(txt_rdata);
 
@@ -123,9 +123,6 @@ impl TxtRdata {
 }
 
 mod test {
-    use crate::message::rdata::txt_rdata::TxtRdata;
-    use crate::message::resource_record::{FromBytes, ToBytes};
-
     #[test]
     fn constructor_test() {
         let text = vec!["constructor".to_string(), "test".to_string()];

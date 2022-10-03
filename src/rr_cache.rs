@@ -115,12 +115,6 @@ impl RRCache {
 }
 
 mod test {
-    use crate::message::rdata::a_rdata::ARdata;
-    use crate::message::rdata::Rdata;
-    use crate::message::resource_record::ResourceRecord;
-    use crate::rr_cache::RRCache;
-    use chrono::prelude::*;
-
     #[test]
     fn constructor_test() {
         let ip_address: [u8; 4] = [127, 0, 0, 0];

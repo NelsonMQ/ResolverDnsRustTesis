@@ -43,7 +43,7 @@ impl NSZone {
     // Creates a zone from a master file
     pub fn from_file(file_name: String, ip_address_for_refresh_zone: String) -> Self {
         let master_file_parsed = MasterFile::from_file(file_name);
-        let mut origin = master_file_parsed.get_origin();
+        let origin = master_file_parsed.get_origin();
         let mut rrs = master_file_parsed.get_rrs();
         let origin_rrs = rrs.remove(&origin).unwrap();
 
@@ -118,7 +118,7 @@ impl NSZone {
     pub fn get_child(&self, name: String) -> (NSZone, i32) {
         let children = self.get_children();
 
-        let mut child_ns = NSZone::new();
+        let child_ns = NSZone::new();
 
         let mut index = 0;
 
@@ -382,14 +382,6 @@ impl NSZone {
 }
 
 mod test {
-    use crate::name_server::master_file::MasterFile;
-
-    use super::NSZone;
-    use crate::message::rdata::a_rdata::ARdata;
-    use crate::message::rdata::ns_rdata::NsRdata;
-    use crate::message::rdata::Rdata;
-    use crate::message::resource_record::ResourceRecord;
-
     #[test]
     fn constructor_test() {
         let nszone = NSZone::new();

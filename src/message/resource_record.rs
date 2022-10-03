@@ -1,14 +1,6 @@
-use crate::message::rdata::a_rdata::ARdata;
-use crate::message::rdata::cname_rdata::CnameRdata;
-use crate::message::rdata::hinfo_rdata::HinfoRdata;
-use crate::message::rdata::mx_rdata::MxRdata;
-use crate::message::rdata::ns_rdata::NsRdata;
-use crate::message::rdata::ptr_rdata::PtrRdata;
-use crate::message::rdata::soa_rdata::SoaRdata;
-use crate::message::rdata::txt_rdata::TxtRdata;
+use crate::domain_name::DomainName;
 use crate::message::rdata::Rdata;
 
-use crate::domain_name::DomainName;
 use std::vec::Vec;
 
 #[derive(Clone)]
@@ -182,8 +174,6 @@ impl ResourceRecord {
         bytes: &'a [u8],
         full_msg: &'a [u8],
     ) -> Result<(ResourceRecord, &'a [u8]), &'static str> {
-        let bytes_len = bytes.len();
-
         let domain_name_result = DomainName::from_bytes(bytes, full_msg.clone());
 
         match domain_name_result {
@@ -302,22 +292,6 @@ impl ResourceRecord {
         let fourth_byte = ttl as u8;
 
         fourth_byte
-    }
-
-    /// Returns a byte that represents the first byte from rdlength in the dns message.
-    fn get_first_rdlength_byte(&self) -> u8 {
-        let rdlength = self.get_rdlength();
-        let first_byte = (rdlength >> 8) as u8;
-
-        first_byte
-    }
-
-    /// Returns a byte that represents the second byte from rdlength in the dns message.
-    fn get_second_rdlength_byte(&self) -> u8 {
-        let rdlength = self.get_rdlength();
-        let second_byte = rdlength as u8;
-
-        second_byte
     }
 
     /// Returns a vec of bytes that represents the rdata in the dns message.
@@ -477,11 +451,6 @@ impl ResourceRecord {
 
 // Tests
 mod test {
-    use crate::domain_name::DomainName;
-    use crate::message::rdata::txt_rdata::TxtRdata;
-    use crate::message::rdata::Rdata;
-    use crate::message::resource_record::ResourceRecord;
-
     #[test]
     fn constructor_test() {
         let txt_rdata = Rdata::SomeTxtRdata(TxtRdata::new(vec!["dcc".to_string()]));

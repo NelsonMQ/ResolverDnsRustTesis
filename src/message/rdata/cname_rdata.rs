@@ -85,7 +85,7 @@ impl CnameRdata {
         let mut cname_rdata = CnameRdata::new();
 
         let name = values.next().unwrap();
-        let mut domain_name = DomainName::from_master_file(name.to_string(), origin);
+        let domain_name = DomainName::from_master_file(name.to_string(), origin);
 
         cname_rdata.set_cname(domain_name);
 
@@ -123,10 +123,6 @@ impl CnameRdata {
 }
 
 mod test {
-    use crate::domain_name::DomainName;
-    use crate::message::rdata::cname_rdata::CnameRdata;
-    use crate::message::resource_record::{FromBytes, ToBytes};
-
     #[test]
     fn constructor_test() {
         let cname_rdata = CnameRdata::new();

@@ -8,9 +8,8 @@ use crate::message::rdata::ptr_rdata::PtrRdata;
 use crate::message::rdata::soa_rdata::SoaRdata;
 use crate::message::rdata::txt_rdata::TxtRdata;
 use crate::message::resource_record::ResourceRecord;
-use core::num;
+
 use std::collections::HashMap;
-use std::fs::read_to_string;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
@@ -63,12 +62,12 @@ impl MasterFile {
             let line_without_comments = MasterFile::remove_comments(line.clone());
 
             let open_parenthesis = match line_without_comments.clone().find("(") {
-                Some(x) => 1,
+                Some(_) => 1,
                 None => 0,
             };
 
             let closed_parenthesis = match line_without_comments.clone().find(")") {
-                Some(x) => 1,
+                Some(_) => 1,
                 None => 0,
             };
 
@@ -164,7 +163,7 @@ impl MasterFile {
         let index = line.find(";");
 
         let there_are_comments = match index {
-            Some(x) => 1,
+            Some(_) => 1,
             None => 0,
         };
 
@@ -178,8 +177,8 @@ impl MasterFile {
     /// Gets the hostname of a line in a master file. If there is no hostname, takes the last hostnames used.
     fn get_line_host_name(&mut self, line: String) -> (String, String) {
         let first_char = line.get(0..1).unwrap();
-        let mut host_name = "".to_string();
-        let mut line_left_to_process = "".to_string();
+        let host_name;
+        let line_left_to_process;
 
         if first_char == " ".to_string() {
             host_name = self.get_last_host();
@@ -198,7 +197,7 @@ impl MasterFile {
     // Process a line with rr data from a master file
     fn process_line_rr(&mut self, line: String) {
         // Gets host name
-        let (mut host_name, line_left_to_process) = self.get_line_host_name(line.clone());
+        let (host_name, line_left_to_process) = self.get_line_host_name(line.clone());
 
         // Process next values
         let mut next_line_items = line_left_to_process.split_whitespace();

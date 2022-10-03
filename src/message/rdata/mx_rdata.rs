@@ -99,7 +99,7 @@ impl MxRdata {
         let mut mx_rdata = MxRdata::new();
         let preference = values.next().unwrap().parse::<u16>().unwrap();
         let name = values.next().unwrap();
-        let mut domain_name = DomainName::from_master_file(name.to_string(), origin);
+        let domain_name = DomainName::from_master_file(name.to_string(), origin);
 
         mx_rdata.set_exchange(domain_name);
         mx_rdata.set_preference(preference);
@@ -157,10 +157,6 @@ impl MxRdata {
 }
 
 mod test {
-    use crate::domain_name::DomainName;
-    use crate::message::rdata::mx_rdata::MxRdata;
-    use crate::message::resource_record::{FromBytes, ToBytes};
-
     #[test]
     fn constructor_test() {
         let mx_rdata = MxRdata::new();

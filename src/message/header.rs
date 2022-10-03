@@ -484,8 +484,6 @@ impl Header {
 }
 
 mod test {
-    use super::Header;
-
     #[test]
     fn constructor_test() {
         let header = Header::new();

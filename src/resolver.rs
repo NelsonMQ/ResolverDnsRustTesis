@@ -1,7 +1,6 @@
 use crate::dns_cache::DnsCache;
 use crate::message::header::Header;
 use crate::message::question::Question;
-use crate::message::rdata::Rdata;
 use crate::message::resource_record::ResourceRecord;
 use crate::message::DnsMessage;
 use crate::name_server::zone::NSZone;
@@ -10,8 +9,7 @@ use crate::resolver::slist::Slist;
 
 use crate::config::RESOLVER_IP_PORT;
 
-use chrono::{DateTime, Utc};
-use core::num;
+use chrono::Utc;
 use std::collections::HashMap;
 use std::io::Read;
 use std::io::Write;
@@ -21,7 +19,6 @@ use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
 use std::thread;
-use std::thread::JoinHandle;
 use std::time::Duration;
 use std::vec::Vec;
 
@@ -85,7 +82,7 @@ impl Resolver {
         new_algorithm: bool,
     ) -> Self {
         // Creates a new cache
-        let mut cache = DnsCache::new();
+        let cache = DnsCache::new();
 
         // Creates a Resolver instance
         let resolver = Resolver {
@@ -182,7 +179,9 @@ impl Resolver {
 
         // Creates an UDP socket
         let socket = UdpSocket::bind(&host_address_and_port).expect("Failed to bind host socket");
-        socket.set_read_timeout(Some(Duration::from_millis(1000)));
+        socket
+            .set_read_timeout(Some(Duration::from_millis(1000)))
+            .expect("Failed to set timeout");
 
         // Receives messages
         loop {
@@ -274,7 +273,7 @@ impl Resolver {
 
             // Check queries for timeout
 
-            for (key, val) in queries_hash_by_id.clone() {
+            for (_, val) in queries_hash_by_id.clone() {
                 let mut query = val.clone();
 
                 let timeout = query.get_timeout();
@@ -322,10 +321,10 @@ impl Resolver {
             }
 
             // We receive the msg
-            let mut dns_message_option = Resolver::receive_udp_msg(socket.try_clone().unwrap());
+            let dns_message_option = Resolver::receive_udp_msg(socket.try_clone().unwrap());
 
             // Creates an empty msg and address
-            let (mut dns_message, mut src_address) = (DnsMessage::new(), "".to_string());
+            let (dns_message, src_address);
 
             // Check if it is all the message
             match dns_message_option {
@@ -351,7 +350,7 @@ impl Resolver {
 
             // We create all necessary to create a resolver query instance
 
-            let mut resolver = self.clone();
+            let resolver = self.clone();
 
             let tx_add_udp_copy = tx_add_udp.clone();
             let tx_delete_udp_copy = tx_delete_udp.clone();
@@ -394,7 +393,6 @@ impl Resolver {
                     tx_delete_ns_tcp_copy,
                     tx_update_query_copy,
                     tx_delete_query_copy.clone(),
-                    dns_message.clone(),
                     tx_update_cache_udp_copy.clone(),
                     tx_update_cache_tcp_copy.clone(),
                     tx_update_cache_ns_udp_copy.clone(),
@@ -485,7 +483,9 @@ impl Resolver {
                                 query_msg.set_header(header);
                             }
 
-                            tx_query_delete_clone.send(resolver_query.clone());
+                            tx_query_delete_clone
+                                .send(resolver_query.clone())
+                                .unwrap_or(());
 
                             Resolver::send_answer_by_udp(
                                 query_msg,
@@ -509,11 +509,10 @@ impl Resolver {
                 if queries_hash_by_id_copy.contains_key(&answer_id) {
                     // Create necessary channels
                     let tx_query_delete_clone = tx_delete_query.clone();
-                    let tx_query_update_clone = tx_update_query.clone();
 
                     // Creates thread to procces the response
                     thread::spawn(move || {
-                        let mut resolver_query =
+                        let resolver_query =
                             queries_hash_by_id_copy.get(&answer_id).unwrap().clone();
 
                         // Calculates the response time
@@ -524,33 +523,41 @@ impl Resolver {
                         let response_time: u32 = (timestamp_ms - last_query_timestamp) as u32;
 
                         // Send request to update resolver and name server cache
-                        tx_update_cache_udp_copy.send((
-                            resolver_query.get_last_query_hostname(),
-                            src_address_copy.clone(),
-                            response_time,
-                        ));
+                        tx_update_cache_udp_copy
+                            .send((
+                                resolver_query.get_last_query_hostname(),
+                                src_address_copy.clone(),
+                                response_time,
+                            ))
+                            .unwrap_or(());
 
-                        tx_update_cache_tcp_copy.send((
-                            resolver_query.get_last_query_hostname(),
-                            src_address_copy.clone(),
-                            response_time,
-                        ));
+                        tx_update_cache_tcp_copy
+                            .send((
+                                resolver_query.get_last_query_hostname(),
+                                src_address_copy.clone(),
+                                response_time,
+                            ))
+                            .unwrap_or(());
 
-                        tx_update_cache_ns_udp_copy.send((
-                            resolver_query.get_last_query_hostname(),
-                            src_address_copy.clone(),
-                            response_time,
-                        ));
+                        tx_update_cache_ns_udp_copy
+                            .send((
+                                resolver_query.get_last_query_hostname(),
+                                src_address_copy.clone(),
+                                response_time,
+                            ))
+                            .unwrap_or(());
 
-                        tx_update_cache_ns_tcp_copy.send((
-                            resolver_query.get_last_query_hostname(),
-                            src_address_copy.clone(),
-                            response_time,
-                        ));
+                        tx_update_cache_ns_tcp_copy
+                            .send((
+                                resolver_query.get_last_query_hostname(),
+                                src_address_copy.clone(),
+                                response_time,
+                            ))
+                            .unwrap_or(());
                         //
 
                         // Process message
-                        let response = match resolver_query
+                        match resolver_query
                             .clone()
                             .step_4_udp(dns_message, socket_copy.try_clone().unwrap())
                         {
@@ -572,7 +579,9 @@ impl Resolver {
                                 msg.set_header(header);
 
                                 // Deletes the query from query_id list
-                                tx_query_delete_clone.send(resolver_query.clone());
+                                tx_query_delete_clone
+                                    .send(resolver_query.clone())
+                                    .unwrap_or(());
 
                                 // Sends the response to the client
                                 Resolver::send_answer_by_udp(
@@ -598,9 +607,6 @@ impl Resolver {
         rx_update_cache_tcp: Receiver<(String, String, u32)>,
         use_cache_for_answering: bool,
     ) {
-        // Vector to save the queries in process
-        let mut queries_hash_by_id = HashMap::<u16, ResolverQuery>::new();
-
         // Channels to send data between threads, resolvers and name server
         let tx_add_udp = self.get_add_sender_udp();
         let tx_delete_udp = self.get_delete_sender_udp();
@@ -616,13 +622,13 @@ impl Resolver {
         let tx_update_cache_ns_tcp = self.get_update_cache_ns_tcp();
 
         // Channel to delete queries ids from queries already response
-        let (tx_delete_query, rx_delete_query) = mpsc::channel();
+        let (tx_delete_query, _rx_delete_query) = mpsc::channel();
 
         // Channel to update resolver queries from queries in progress
-        let (tx_update_query, rx_update_query) = mpsc::channel();
+        let (tx_update_query, _rx_update_query) = mpsc::channel();
 
         // Gets ip and port str
-        let mut host_address_and_port = self.get_ip_address();
+        let host_address_and_port = self.get_ip_address();
 
         // Creates a TCP Listener
         let listener = TcpListener::bind(&host_address_and_port).expect("Could not bind");
@@ -631,7 +637,7 @@ impl Resolver {
         loop {
             // Accept connection
             match listener.accept() {
-                Ok((mut stream, src_address)) => {
+                Ok((stream, src_address)) => {
                     // Delete from cache
 
                     let mut received_delete = rx_delete_tcp.try_iter();
@@ -729,11 +735,7 @@ impl Resolver {
                             let dns_format_error_msg = DnsMessage::format_error_msg();
 
                             // Sends the answer
-                            Resolver::send_answer_by_tcp(
-                                dns_format_error_msg,
-                                stream.peer_addr().unwrap().to_string(),
-                                stream,
-                            );
+                            Resolver::send_answer_by_tcp(dns_format_error_msg, stream);
 
                             continue;
                         }
@@ -742,7 +744,7 @@ impl Resolver {
                     let new_algorithm = self.new_algorithm;
 
                     // Creates a new thread to process the msg
-                    let thread_query = thread::spawn(move || {
+                    thread::spawn(move || {
                         let dns_message = dns_message_parse_result.unwrap();
 
                         // We get the msg type, it can be query or answer
@@ -770,7 +772,6 @@ impl Resolver {
                                 tx_delete_ns_tcp_copy,
                                 tx_update_query_copy,
                                 tx_delete_query_copy,
-                                dns_message.clone(),
                                 tx_update_cache_udp_copy,
                                 tx_update_cache_tcp_copy,
                                 tx_update_cache_ns_udp_copy,
@@ -799,15 +800,11 @@ impl Resolver {
                             answer_msg.set_query_id(resolver_query.get_old_id());
 
                             // Sends the answer to the client
-                            Resolver::send_answer_by_tcp(
-                                answer_msg,
-                                stream.peer_addr().unwrap().to_string(),
-                                stream,
-                            );
+                            Resolver::send_answer_by_tcp(answer_msg, stream);
                         }
                     });
                 }
-                Err(e) => {}
+                Err(_) => {}
             }
         }
     }
@@ -816,14 +813,14 @@ impl Resolver {
 // Utils
 impl Resolver {
     // Receives and UDP message
-    pub fn receive_udp_msg(mut socket: UdpSocket) -> Option<(DnsMessage, String)> {
+    pub fn receive_udp_msg(socket: UdpSocket) -> Option<(DnsMessage, String)> {
         // 512 bytes buffer
         let mut msg = [0; 512];
 
         // receives a msg
         let (number_of_bytes_msg, address) = match socket.recv_from(&mut msg) {
             Ok((bytes, addr)) => (bytes, addr.to_string()),
-            Err(e) => (0, "".to_string()),
+            Err(_) => (0, "".to_string()),
         };
 
         let mut kill_resolver = true;
@@ -848,7 +845,7 @@ impl Resolver {
         // Get TC bit
         let tc = (msg[2] as u8 & 0b00000010) >> 1;
 
-        let mut dns_msg_parsed_result;
+        let dns_msg_parsed_result;
 
         if tc == 1 {
             // Parse the question
@@ -866,14 +863,10 @@ impl Resolver {
                 msg_header.get_id(),
             );
 
-            let mut stream = TcpStream::connect(RESOLVER_IP_PORT.to_string())
+            let stream = TcpStream::connect(RESOLVER_IP_PORT.to_string())
                 .expect("Couldn't connect to the server...");
 
-            Resolver::send_answer_by_tcp(
-                query_msg,
-                RESOLVER_IP_PORT.to_string(),
-                stream.try_clone().unwrap(),
-            );
+            Resolver::send_answer_by_tcp(query_msg, stream.try_clone().unwrap());
 
             let bytes_response = Resolver::receive_tcp_msg(stream).unwrap();
 
@@ -903,11 +896,11 @@ impl Resolver {
         let mut received_msg = [0; 2];
 
         // Receive a msg
-        let mut result = stream.read(&mut received_msg);
+        let result = stream.read(&mut received_msg);
 
         let number_of_bytes = match result {
             Ok(val) => val,
-            Err(e) => {
+            Err(_) => {
                 return None;
             }
         };
@@ -979,7 +972,7 @@ impl Resolver {
     }
 
     // Sends the response to the address by tcp
-    fn send_answer_by_tcp(response: DnsMessage, src_address: String, mut stream: TcpStream) {
+    fn send_answer_by_tcp(response: DnsMessage, mut stream: TcpStream) {
         // Msg to bytes
         let bytes = response.to_bytes();
 
@@ -991,7 +984,7 @@ impl Resolver {
         let full_msg = [&tcp_bytes_length, bytes.as_slice()].concat();
 
         // Sends the message
-        stream.write(&full_msg);
+        stream.write(&full_msg).expect("Couldn't send response");
     }
 }
 
@@ -1102,20 +1095,6 @@ impl Resolver {
 }
 
 mod test {
-    use crate::dns_cache::DnsCache;
-    use crate::domain_name::DomainName;
-    use crate::message::rdata::a_rdata::ARdata;
-    use crate::message::rdata::ns_rdata::NsRdata;
-    use crate::message::rdata::Rdata;
-    use crate::message::resource_record::ResourceRecord;
-    use crate::message::DnsMessage;
-    use crate::resolver::resolver_query::ResolverQuery;
-    use crate::resolver::slist::Slist;
-    use crate::resolver::Resolver;
-    use std::collections::HashMap;
-    use std::sync::mpsc;
-    use std::vec::Vec;
-
     #[test]
     fn constructor_test() {
         /// Channels
@@ -1338,7 +1317,6 @@ mod test {
             delete_sender_ns_tcp,
             tx_update_query,
             tx_delete_query,
-            DnsMessage::new(),
             tx_update_cache_udp,
             tx_update_cache_tcp,
             tx_update_cache_ns_udp,

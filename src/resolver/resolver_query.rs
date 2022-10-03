@@ -13,7 +13,6 @@ use crate::config::RESOLVER_IP_PORT;
 use crate::config::USE_CACHE;
 
 use chrono::Utc;
-use rand::seq::index;
 use rand::{thread_rng, Rng};
 use std::cmp;
 use std::collections::HashMap;
@@ -21,11 +20,8 @@ use std::io::Write;
 use std::net::TcpStream;
 use std::net::UdpSocket;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::sync::mpsc;
-use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
 use std::thread;
-use std::thread::JoinHandle;
 use std::time::Duration;
 use std::vec::Vec;
 
@@ -78,8 +74,6 @@ pub struct ResolverQuery {
     tx_update_query: Sender<ResolverQuery>,
     // Sender to delete ResolverQuery struct in the resolver
     tx_delete_query: Sender<ResolverQuery>,
-    // Client msg
-    client_msg: DnsMessage,
     // Index to choose from Slist
     index_to_choose: u16,
     // Timeout
@@ -105,7 +99,6 @@ impl ResolverQuery {
         delete_channel_ns_tcp: Sender<(String, String)>,
         tx_update_query: Sender<ResolverQuery>,
         tx_delete_query: Sender<ResolverQuery>,
-        client_msg: DnsMessage,
         update_cache_sender_udp: Sender<(String, String, u32)>,
         update_cache_sender_tcp: Sender<(String, String, u32)>,
         update_cache_sender_ns_udp: Sender<(String, String, u32)>,
@@ -142,7 +135,6 @@ impl ResolverQuery {
             queries_before_temporary_error: queries_before_temporary_error,
             tx_update_query: tx_update_query,
             tx_delete_query: tx_delete_query,
-            client_msg: client_msg,
             index_to_choose: 0,
             last_query_timestamp: now.timestamp() as u64 * 1000,
             timeout: 2000,
@@ -184,12 +176,7 @@ impl ResolverQuery {
     }
 
     // Initialize the slist for UDP
-    pub fn initialize_slist_udp(
-        &mut self,
-        sbelt: Slist,
-        start_look_up_host_name: String,
-        socket: UdpSocket,
-    ) {
+    pub fn initialize_slist_udp(&mut self, sbelt: Slist, start_look_up_host_name: String) {
         // Gets info to initialize slist
         let host_name = start_look_up_host_name;
         let mut cache = self.get_cache();
@@ -292,7 +279,8 @@ impl ResolverQuery {
                     ip_found = ip_found + 1;
                 }
 
-                for ip in ns_ip_address_txt.clone() {
+                // Case to fix AAAA not implemented
+                for _ip in ns_ip_address_txt.clone() {
                     // Gets the ip address
                     let ip_address = "192.54.54.3";
 
@@ -491,7 +479,7 @@ impl ResolverQuery {
             // Vector to save answers
             let mut all_answers = Vec::new();
 
-            for (class, hashzone) in self.get_ns_data().iter() {
+            for (class, _) in self.get_ns_data().iter() {
                 // Gets the zone by class and sname
                 let (main_zone, available) = NameServer::search_nearest_ancestor_zone(
                     self.get_ns_data(),
@@ -661,7 +649,7 @@ impl ResolverQuery {
 
             let mut rrs_cache_answer = Vec::new();
 
-            let mut cache_answer = Vec::new();
+            let cache_answer;
 
             //Check if exist nxdomain for domain_name and its subdomains
             let (nxdomain_subdomain_and_parent_domains, answer) =
@@ -752,7 +740,7 @@ impl ResolverQuery {
                         answer[0].clone(),
                     );
 
-                    if (exist_in_cache == false || data_ranking > 3) {
+                    if exist_in_cache == false || data_ranking > 3 {
                         if exist_in_cache == true {
                             self.remove_from_cache(
                                 answer[0].clone().get_name().get_name(),
@@ -785,7 +773,7 @@ impl ResolverQuery {
                             self.exist_cache_data(ad.get_name().get_name(), ad.clone());
 
                         // If cache does not exist, we cache the data
-                        if (exist_in_cache == false) {
+                        if exist_in_cache == false {
                             if ad.get_ttl() > 0 {
                                 ad.set_ttl(ad.get_ttl() + self.get_timestamp());
 
@@ -801,12 +789,12 @@ impl ResolverQuery {
                                 last_domain_saved = ad.get_name().get_name();
                             }
                         } else {
-                            if (data_ranking >= 7) {
+                            if data_ranking >= 7 {
                                 if ad.get_ttl() > 0 {
                                     ad.set_ttl(ad.get_ttl() + self.get_timestamp());
 
                                     // Cache
-                                    if (last_domain_saved != ad.get_name().get_name()) {
+                                    if last_domain_saved != ad.get_name().get_name() {
                                         self.remove_from_cache(
                                             ad.get_name().get_name(),
                                             ad.clone().get_string_type(),
@@ -835,7 +823,7 @@ impl ResolverQuery {
                     );
 
                     // If cache does not exist, we cache the data
-                    if (exist_in_cache == false) {
+                    if exist_in_cache == false {
                         for an in answer.iter_mut() {
                             if an.get_ttl() > 0 && an.get_type_code() == self.get_stype() {
                                 an.set_ttl(an.get_ttl() + self.get_timestamp());
@@ -852,7 +840,7 @@ impl ResolverQuery {
                             }
                         }
                     } else {
-                        if (data_ranking > 6) {
+                        if data_ranking > 6 {
                             self.remove_from_cache(
                                 answer[0].clone().get_name().get_name(),
                                 answer[0].clone().get_string_type(),
@@ -884,7 +872,7 @@ impl ResolverQuery {
                             self.exist_cache_data(ad.get_name().get_name(), ad.clone());
 
                         // If cache does not exist, we cache the data
-                        if (exist_in_cache == false) {
+                        if exist_in_cache == false {
                             if ad.get_ttl() > 0 {
                                 ad.set_ttl(ad.get_ttl() + self.get_timestamp());
 
@@ -900,12 +888,12 @@ impl ResolverQuery {
                                 last_domain_saved = ad.get_name().get_name();
                             }
                         } else {
-                            if (data_ranking >= 6) {
+                            if data_ranking >= 6 {
                                 if ad.get_ttl() > 0 {
                                     ad.set_ttl(ad.get_ttl() + self.get_timestamp());
 
                                     // Cache
-                                    if (last_domain_saved != ad.get_name().get_name()) {
+                                    if last_domain_saved != ad.get_name().get_name() {
                                         self.remove_from_cache(
                                             ad.get_name().get_name(),
                                             ad.clone().get_string_type(),
@@ -927,7 +915,7 @@ impl ResolverQuery {
                 }
             }
         } else {
-            let mut authority = msg.get_authority();
+            let authority = msg.get_authority();
 
             if authority.len() > 0 {
                 let mut first_authority = authority[0].clone();
@@ -1030,23 +1018,23 @@ impl ResolverQuery {
         let no_data = local_info.2;
 
         // If local info exists, return those data
-        if (cache_info.len() > 0 || no_data == true) {
+        if cache_info.len() > 0 || no_data == true {
             return Some((cache_info, nxdomain, no_data));
         }
         // In other case, we send a query to name servers
         else {
-            self.step_2_udp(socket.try_clone().unwrap());
+            self.step_2_udp();
             self.step_3_udp(socket);
             return None;
         }
     }
 
     // Step 2 RFC 1034 UDP
-    pub fn step_2_udp(&mut self, socket: UdpSocket) {
+    pub fn step_2_udp(&mut self) {
         // Initializes slist
         let sbelt = self.get_sbelt();
         let sname = self.get_sname();
-        self.initialize_slist_udp(sbelt, sname, socket);
+        self.initialize_slist_udp(sbelt, sname);
 
         // Sorts slist
         let mut slist = self.get_slist();
@@ -1056,7 +1044,7 @@ impl ResolverQuery {
         self.set_slist(slist);
 
         // Updates the query
-        self.get_tx_update_query().send(self.clone());
+        self.get_tx_update_query().send(self.clone()).unwrap_or(());
     }
 
     // Step 3 from RFC 1034 UDP version
@@ -1065,16 +1053,16 @@ impl ResolverQuery {
 
         // Temporary Error
         if queries_left <= 0 {
-            self.get_tx_delete_query().send(self.clone());
+            self.get_tx_delete_query().send(self.clone()).unwrap_or(());
             return;
         }
 
         // Gets slist
         let mut slist = self.get_slist();
-        let mut slist_len = slist.len();
+        let slist_len = slist.len();
 
         if slist_len <= 0 {
-            self.get_tx_delete_query().send(self.clone());
+            self.get_tx_delete_query().send(self.clone()).unwrap_or(());
             return;
         }
 
@@ -1094,14 +1082,11 @@ impl ResolverQuery {
         while &best_server_ip == "" {
             // If all records do not have ip, we update slist
             if counter > slist.len() {
-                let new_slist = self.send_internal_queries_for_slist_udp(
-                    self.get_slist(),
-                    socket.try_clone().unwrap(),
-                );
+                let new_slist = self.send_internal_queries_for_slist_udp(self.get_slist());
                 self.set_slist(new_slist.clone());
 
                 if new_slist.len() <= 0 {
-                    self.get_tx_delete_query().send(self.clone());
+                    self.get_tx_delete_query().send(self.clone()).unwrap_or(());
                     return;
                 }
             }
@@ -1132,7 +1117,7 @@ impl ResolverQuery {
 
         //
 
-        if (best_server_ip.contains(":") == false) {
+        if best_server_ip.contains(":") == false {
             // Sets 53 port
             best_server_ip.push_str(":53");
         }
@@ -1144,8 +1129,6 @@ impl ResolverQuery {
         // Creates query msg
         let query_msg = self.create_query_message();
         let msg_to_bytes = query_msg.to_bytes();
-
-        let best_server_name = best_server_to_ask.get(&"name".to_string()).unwrap().clone();
 
         // Update the queries count before temporary error
         self.set_queries_before_temporary_error(queries_left - 1);
@@ -1165,7 +1148,7 @@ impl ResolverQuery {
         //
 
         // Send the resolver query to the resolver for update
-        self.get_tx_update_query().send(self.clone());
+        self.get_tx_update_query().send(self.clone()).unwrap_or(());
         //
 
         // Sends the query
@@ -1254,7 +1237,7 @@ impl ResolverQuery {
         let (exist_in_cache, data_ranking) =
             self.exist_cache_data(qname.clone(), authority[0].clone());
 
-        if (exist_in_cache == false || data_ranking > 4) {
+        if exist_in_cache == false || data_ranking > 4 {
             if exist_in_cache == true {
                 // Delete cache
                 self.remove_from_cache(
@@ -1307,8 +1290,6 @@ impl ResolverQuery {
                                         ip.get_name().get_name(),
                                         ip.clone().get_string_type(),
                                     );
-
-                                    first_ip_delete_cache = false;
                                 }
 
                                 // Cache
@@ -1331,16 +1312,16 @@ impl ResolverQuery {
         }
 
         // Continue the delegation
-        self.step_2_udp(socket.try_clone().unwrap());
+        self.step_2_udp();
         self.step_3_udp(socket.try_clone().unwrap());
 
         if self.new_algorithm == true && data_ranking > 3 {
-            self.send_internal_queries_for_child_ns_udp(socket.try_clone().unwrap(), qname);
+            self.send_internal_queries_for_child_ns_udp(qname);
         }
     }
 
     // Step 4c from RFC 1034 UDP version
-    pub fn step_4c_udp(&mut self, mut msg: DnsMessage, socket: UdpSocket) -> Option<DnsMessage> {
+    pub fn step_4c_udp(&mut self, msg: DnsMessage, socket: UdpSocket) -> Option<DnsMessage> {
         // Gets answer, and rdata from the first answer
         let answers = msg.get_answer();
         let mut resource_record = answers[0].clone();
@@ -1502,21 +1483,13 @@ impl ResolverQuery {
                 Some(index) => {
                     // Initialize slist from parent
                     let parent_host_name = &host_name_asked[index + 1..];
-                    self.initialize_slist_udp(
-                        self.get_sbelt(),
-                        parent_host_name.to_string(),
-                        socket.try_clone().unwrap(),
-                    );
+                    self.initialize_slist_udp(self.get_sbelt(), parent_host_name.to_string());
                     self.set_index_to_choose(0);
                 }
                 // If there is no parent
                 None => {
                     // Initialize from root
-                    self.initialize_slist_udp(
-                        self.get_sbelt(),
-                        ".".to_string(),
-                        socket.try_clone().unwrap(),
-                    );
+                    self.initialize_slist_udp(self.get_sbelt(), ".".to_string());
                     self.set_index_to_choose(0);
                 }
             }
@@ -1527,7 +1500,7 @@ impl ResolverQuery {
         }
 
         // Update the query data in resolver
-        self.get_tx_update_query().send(self.clone());
+        self.get_tx_update_query().send(self.clone()).unwrap_or(());
         //
 
         self.step_3_udp(socket);
@@ -1535,7 +1508,7 @@ impl ResolverQuery {
     }
 
     // Sends internal querie to obtain NS child records
-    fn send_internal_queries_for_child_ns_udp(&self, socket: UdpSocket, qname: String) {
+    fn send_internal_queries_for_child_ns_udp(&self, qname: String) {
         thread::spawn(move || {
             // Creates an UDP socket
             let ip = IP_FOR_SLIST_NS_QUERIES.to_string();
@@ -1551,17 +1524,15 @@ impl ResolverQuery {
 
             let msg_to_bytes = query_msg.to_bytes();
 
-            slist_socket.send_to(&msg_to_bytes, RESOLVER_IP_PORT);
+            slist_socket
+                .send_to(&msg_to_bytes, RESOLVER_IP_PORT)
+                .expect("Couldn't send child NS query");
         });
     }
 
     // Sends internal querie to obtain NS child records
     fn send_internal_queries_for_child_ns_tcp(&self, qname: String) {
-        let queries_left = self.get_queries_before_temporary_error();
-        let new_algorithm = self.new_algorithm;
-
         thread::spawn(move || {
-            let ip = IP_FOR_SLIST_NS_QUERIES.to_string();
             let mut rng = thread_rng();
 
             let slist_socket = TcpStream::connect(RESOLVER_IP_PORT.to_string()).unwrap();
@@ -1572,22 +1543,16 @@ impl ResolverQuery {
             // Create msg
             let query_msg = DnsMessage::new_query_message(qname.clone(), 1, 1, 0, false, query_id);
 
-            Resolver::send_answer_by_tcp(
-                query_msg,
-                RESOLVER_IP_PORT.to_string(),
-                slist_socket.try_clone().unwrap(),
-            );
+            Resolver::send_answer_by_tcp(query_msg, slist_socket.try_clone().unwrap());
         });
     }
 
     // Sends internal queries to obtain ip address for slist
-    fn send_internal_queries_for_slist_udp(&self, mut slist: Slist, socket: UdpSocket) -> Slist {
+    fn send_internal_queries_for_slist_udp(&self, mut slist: Slist) -> Slist {
         // Gets NS from slist
-        let mut ns_list = slist.get_ns_list();
+        let ns_list = slist.get_ns_list();
 
         for ns in &ns_list {
-            let queries_left = self.get_queries_before_temporary_error();
-
             let ip_addr = ns.get(&"ip_address".to_string()).unwrap().to_string();
             let qname = ns
                 .get(&"name".to_string())
@@ -1602,7 +1567,9 @@ impl ResolverQuery {
                 let mut rng = thread_rng();
 
                 let slist_socket = Self::initilize_socket_udp(ip).unwrap();
-                slist_socket.set_read_timeout(Some(Duration::from_millis(5000)));
+                slist_socket
+                    .set_read_timeout(Some(Duration::from_millis(5000)))
+                    .expect("Couldn't set read timeout");
 
                 // Create query id
                 let query_id: u16 = rng.gen();
@@ -1613,7 +1580,9 @@ impl ResolverQuery {
 
                 let msg_to_bytes = query_msg.to_bytes();
 
-                slist_socket.send_to(&msg_to_bytes, RESOLVER_IP_PORT);
+                slist_socket
+                    .send_to(&msg_to_bytes, RESOLVER_IP_PORT)
+                    .expect("Couldn't send child NS query");
 
                 // Wait the response
                 let response_result = Resolver::receive_udp_msg(slist_socket.try_clone().unwrap());
@@ -1655,7 +1624,7 @@ impl ResolverQuery {
 
                     break;
                 }
-                if (msg_response.get_header().get_rcode() != 0) {
+                if msg_response.get_header().get_rcode() != 0 {
                     slist.delete(qname.clone());
                     continue;
                 }
@@ -1691,9 +1660,10 @@ impl ResolverQuery {
             port.parse::<u16>().unwrap(),
         );
 
-        let mut stream_result =
+        let stream_result =
             TcpStream::connect_timeout(&ip_v4_socket, Duration::from_millis(timeout as u64));
-        let mut stream_bool: bool = match stream_result {
+
+        let stream_bool: bool = match stream_result {
             Ok(_) => true,
             Err(_) => false,
         };
@@ -1705,10 +1675,12 @@ impl ResolverQuery {
         let mut stream = stream_result.unwrap();
 
         // Set timeout for read
-        stream.set_read_timeout(Some(Duration::from_millis(timeout as u64)));
+        stream
+            .set_read_timeout(Some(Duration::from_millis(timeout as u64)))
+            .expect("Couldn't set read timeout");
 
         // Sends msg
-        stream.write(&full_msg);
+        stream.write(&full_msg).expect("Couldn't send tcp query");
 
         match Resolver::receive_tcp_msg(stream) {
             // If there is answer
@@ -1719,7 +1691,7 @@ impl ResolverQuery {
                 // Checks parsed msg
                 match dns_response_result {
                     Ok(_) => {}
-                    Err(e) => {
+                    Err(_) => {
                         return DnsMessage::format_error_msg();
                     }
                 }
@@ -1734,29 +1706,37 @@ impl ResolverQuery {
                 let response_time = (timestamp_ms - last_query_timestamp) as u32;
 
                 // Send request to update cache to resolver and name server
-                self.get_update_cache_udp().send((
-                    self.get_last_query_hostname(),
-                    ip_address.clone(),
-                    response_time,
-                ));
+                self.get_update_cache_udp()
+                    .send((
+                        self.get_last_query_hostname(),
+                        ip_address.clone(),
+                        response_time,
+                    ))
+                    .unwrap_or(());
 
-                self.get_update_cache_tcp().send((
-                    self.get_last_query_hostname(),
-                    ip_address.clone(),
-                    response_time,
-                ));
+                self.get_update_cache_tcp()
+                    .send((
+                        self.get_last_query_hostname(),
+                        ip_address.clone(),
+                        response_time,
+                    ))
+                    .unwrap_or(());
 
-                self.get_update_cache_ns_udp().send((
-                    self.get_last_query_hostname(),
-                    ip_address.clone(),
-                    response_time,
-                ));
+                self.get_update_cache_ns_udp()
+                    .send((
+                        self.get_last_query_hostname(),
+                        ip_address.clone(),
+                        response_time,
+                    ))
+                    .unwrap_or(());
 
-                self.get_update_cache_ns_tcp().send((
-                    self.get_last_query_hostname(),
-                    ip_address.clone(),
-                    response_time,
-                ));
+                self.get_update_cache_ns_tcp()
+                    .send((
+                        self.get_last_query_hostname(),
+                        ip_address.clone(),
+                        response_time,
+                    ))
+                    .unwrap_or(());
                 //
 
                 // Process the answer
@@ -1888,7 +1868,7 @@ impl ResolverQuery {
                 self.set_slist(new_slist.clone());
 
                 if new_slist.len() <= 0 {
-                    self.get_tx_delete_query().send(self.clone());
+                    self.get_tx_delete_query().send(self.clone()).unwrap_or(());
                     panic!("Temporary Error");
                 }
             }
@@ -1918,7 +1898,7 @@ impl ResolverQuery {
         //
 
         // Adds port to the ip adress
-        if (best_server_ip.contains(":") == false) {
+        if best_server_ip.contains(":") == false {
             // Sets 53 port
             best_server_ip.push_str(":53");
         }
@@ -1964,7 +1944,6 @@ impl ResolverQuery {
         }
 
         let authority = msg_from_response.get_authority();
-        let additional = msg_from_response.get_additional();
 
         // Step 4b
         // If there is authority and it is NS type
@@ -2037,7 +2016,7 @@ impl ResolverQuery {
             authority[0].clone(),
         );
 
-        if (exist_in_cache == false || data_ranking > 4) {
+        if exist_in_cache == false || data_ranking > 4 {
             if exist_in_cache == true {
                 //Remove old cache
                 self.remove_from_cache(
@@ -2091,8 +2070,6 @@ impl ResolverQuery {
                                         ip.get_name().get_name(),
                                         ip.clone().get_string_type(),
                                     );
-
-                                    first_ip_delete_cache = false;
                                 }
 
                                 // Cache
@@ -2124,7 +2101,7 @@ impl ResolverQuery {
     }
 
     // Step 4c from RFC 1034 TCP version
-    pub fn step_4c_tcp(&mut self, mut msg: DnsMessage) -> DnsMessage {
+    pub fn step_4c_tcp(&mut self, msg: DnsMessage) -> DnsMessage {
         // Gets the first rdata from the answer
         let answer = msg.get_answer();
         let resource_record = answer[0].clone();
@@ -2204,8 +2181,6 @@ impl ResolverQuery {
         let ns_list = slist.get_ns_list();
 
         for ns in ns_list {
-            let queries_left = self.get_queries_before_temporary_error();
-
             let ip_addr = ns.get(&"ip_address".to_string()).unwrap().to_string();
             let qname = ns
                 .get(&"name".to_string())
@@ -2215,11 +2190,12 @@ impl ResolverQuery {
 
             // If the ns does not have ip
             if ip_addr == "".to_string() {
-                let ip = IP_FOR_SLIST_NS_QUERIES.to_string();
                 let mut rng = thread_rng();
 
                 let slist_socket = TcpStream::connect(RESOLVER_IP_PORT.to_string()).unwrap();
-                slist_socket.set_read_timeout(Some(Duration::from_millis(5000)));
+                slist_socket
+                    .set_read_timeout(Some(Duration::from_millis(5000)))
+                    .expect("Couldn't set read timeout");
 
                 // Create query id
                 let query_id: u16 = rng.gen();
@@ -2228,16 +2204,12 @@ impl ResolverQuery {
                 let query_msg =
                     DnsMessage::new_query_message(qname.clone(), 1, 1, 0, false, query_id);
 
-                Resolver::send_answer_by_tcp(
-                    query_msg,
-                    RESOLVER_IP_PORT.to_string(),
-                    slist_socket.try_clone().unwrap(),
-                );
+                Resolver::send_answer_by_tcp(query_msg, slist_socket.try_clone().unwrap());
 
                 // Wait the response
                 let response_result = Resolver::receive_tcp_msg(slist_socket.try_clone().unwrap());
 
-                let mut msg_response;
+                let msg_response;
 
                 match response_result {
                     Some(val) => {
@@ -2351,14 +2323,16 @@ impl ResolverQuery {
         // Sends info to update the cache
         self.get_delete_channel_udp()
             .send((domain_name.clone(), rr_type.clone()))
-            .unwrap();
+            .unwrap_or(());
         self.get_delete_channel_tcp()
             .send((domain_name.clone(), rr_type.clone()))
-            .unwrap();
+            .unwrap_or(());
         self.get_delete_channel_ns_udp()
-            .send((domain_name.clone(), rr_type.clone()));
+            .send((domain_name.clone(), rr_type.clone()))
+            .unwrap_or(());
         self.get_delete_channel_ns_tcp()
-            .send((domain_name.clone(), rr_type.clone()));
+            .send((domain_name.clone(), rr_type.clone()))
+            .unwrap_or(());
 
         // Removes the element
         cache.remove(domain_name, rr_type);
@@ -2434,11 +2408,11 @@ impl ResolverQuery {
 
     pub fn initilize_socket_udp(ip_addr: String) -> Option<UdpSocket> {
         // Create randon generator
-        let mut ip = ip_addr;
+        let ip = ip_addr;
         let mut rng = thread_rng();
         let mut port = rng.gen_range(50000..65000);
 
-        let mut port_ok = false;
+        let port_ok = false;
 
         while port_ok == false {
             let mut ip_port = "".to_string();
@@ -2721,21 +2695,6 @@ impl ResolverQuery {
 }
 
 mod resolver_query_tests {
-    use crate::dns_cache::DnsCache;
-    use crate::domain_name::DomainName;
-    use crate::message::rdata::a_rdata::ARdata;
-    use crate::message::rdata::ns_rdata::NsRdata;
-    use crate::message::rdata::Rdata;
-    use crate::message::resource_record::ResourceRecord;
-    use crate::message::DnsMessage;
-    use crate::resolver::resolver_query::ResolverQuery;
-    use crate::resolver::slist::Slist;
-
-    use chrono::Utc;
-    use std::collections::HashMap;
-    use std::sync::mpsc;
-    use std::vec::Vec;
-
     #[test]
     fn constructor_test() {
         /// Channels

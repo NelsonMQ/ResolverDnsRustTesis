@@ -350,13 +350,6 @@ impl DnsCache {
 }
 
 mod test {
-    use crate::dns_cache::DnsCache;
-    use crate::domain_name::DomainName;
-    use crate::message::rdata::a_rdata::ARdata;
-    use crate::message::rdata::ns_rdata::NsRdata;
-    use crate::message::rdata::Rdata;
-    use crate::message::resource_record::ResourceRecord;
-
     #[test]
     fn constructor_test() {
         let cache = DnsCache::new();

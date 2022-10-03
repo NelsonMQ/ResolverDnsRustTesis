@@ -10,8 +10,7 @@ use crate::message::DnsMessage;
 use crate::resolver::Resolver;
 
 use rand::{thread_rng, Rng};
-use std::collections::HashMap;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::net::TcpStream;
 use std::net::UdpSocket;
 use std::time::{Duration, Instant};
@@ -37,8 +36,12 @@ pub fn run_client(host_name: String, qclass: u16, qtype: u16) -> (Duration, Vec<
         let socket = UdpSocket::bind(CLIENT_IP_PORT).expect("No connection");
         let msg_to_bytes = query_msg.to_bytes();
 
-        socket.send_to(&msg_to_bytes, RESOLVER_IP_PORT);
-        socket.set_read_timeout(Some(Duration::from_millis(TIMEOUT * 1000)));
+        socket
+            .send_to(&msg_to_bytes, RESOLVER_IP_PORT)
+            .expect("Query could't send");
+        socket
+            .set_read_timeout(Some(Duration::from_millis(TIMEOUT * 1000)))
+            .expect("Set client readtimeout failed");
 
         let response_result = Resolver::receive_udp_msg(socket.try_clone().unwrap());
 
@@ -65,8 +68,11 @@ pub fn run_client(host_name: String, qclass: u16, qtype: u16) -> (Duration, Vec<
 
         let full_msg = [&tcp_bytes_length, bytes.as_slice()].concat();
 
-        stream.set_read_timeout(Some(Duration::from_millis(TIMEOUT * 1000)));
-        stream.write(&full_msg);
+        stream
+            .set_read_timeout(Some(Duration::from_millis(TIMEOUT * 1000)))
+            .expect("Set client readtimeout failed");
+
+        stream.write(&full_msg).expect("Tcp query could't send");
 
         match Resolver::receive_tcp_msg(stream) {
             Some(val) => {
@@ -84,12 +90,8 @@ pub fn run_client(host_name: String, qclass: u16, qtype: u16) -> (Duration, Vec<
     // Get the message and print the information
     let header = dns_message.get_header();
     let answers = dns_message.get_answer();
-    let authority = dns_message.get_authority();
-    let additional = dns_message.get_additional();
 
     let answer_count = header.get_ancount();
-    let authority_count = header.get_nscount();
-    let additional_count = header.get_arcount();
 
     // Not data found error
     if answer_count == 0 && header.get_qr() == true && header.get_aa() == true {

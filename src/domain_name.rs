@@ -1,5 +1,3 @@
-use crate::name_server::zone::NSZone;
-
 use std::string::String;
 
 #[derive(Clone, Default)]
@@ -42,7 +40,7 @@ impl DomainName {
             } else {
                 name.push(*byte as char);
             }
-            index += 1;
+            index = index + 1;
         }
 
         name.remove(0);
@@ -98,9 +96,6 @@ impl DomainName {
 
                 let label_string =
                     DomainName::from_bytes_no_offset(&no_domain_bytes[..(first_byte + 1) as usize]);
-
-                // Checks label restrictions
-                let check_label = NSZone::check_label_name(label_string.clone());
 
                 domain_name_str.push_str(&label_string);
                 domain_name_str.push_str(".");
@@ -199,8 +194,6 @@ impl DomainName {
 }
 
 mod test {
-    use super::DomainName;
-
     #[test]
     fn constructor_test() {
         let domain_name = DomainName::new();

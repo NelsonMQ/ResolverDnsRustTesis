@@ -230,10 +230,6 @@ impl Slist {
 }
 
 mod test {
-    use crate::resolver::slist::Slist;
-    use std::collections::HashMap;
-    use std::vec::Vec;
-
     #[test]
     fn constructor_test() {
         let slist = Slist::new();

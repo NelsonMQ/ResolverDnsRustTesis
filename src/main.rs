@@ -13,10 +13,7 @@ use crate::resolver::slist::Slist;
 use crate::resolver::Resolver;
 
 use std::sync::mpsc;
-use std::thread;
 
-use crate::config::MASTER_FILES;
-//use crate::config::NAME_SERVER_IP;
 use crate::config::RESOLVER_IP_PORT;
 use crate::config::SBELT_ROOT_IPS;
 

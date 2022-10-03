@@ -86,7 +86,7 @@ impl NsRdata {
     ) -> ResourceRecord {
         let mut ns_rdata = NsRdata::new();
         let name = values.next().unwrap();
-        let mut domain_name = DomainName::from_master_file(name.to_string(), origin);
+        let domain_name = DomainName::from_master_file(name.to_string(), origin);
 
         ns_rdata.set_nsdname(domain_name);
 
@@ -123,10 +123,6 @@ impl NsRdata {
 }
 
 mod test {
-    use crate::domain_name::DomainName;
-    use crate::message::rdata::ns_rdata::NsRdata;
-    use crate::message::resource_record::{FromBytes, ToBytes};
-
     #[test]
     fn constructor_test() {
         let ns_rdata = NsRdata::new();

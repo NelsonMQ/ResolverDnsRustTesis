@@ -1,29 +1,22 @@
 use crate::config::RECURSIVE_AVAILABLE;
 use crate::dns_cache::DnsCache;
-use crate::message::rdata::cname_rdata::CnameRdata;
 use crate::message::rdata::Rdata;
 use crate::message::resource_record::ResourceRecord;
 use crate::message::DnsMessage;
 use crate::name_server::zone::NSZone;
 use crate::resolver::Resolver;
 
-use chrono::{DateTime, Utc};
-use core::time;
+use chrono::Utc;
 use rand::{thread_rng, Rng};
 use std::cmp;
-use std::cmp::min;
 use std::collections::HashMap;
-use std::io::Read;
 use std::io::Write;
 use std::net::UdpSocket;
 use std::net::{TcpListener, TcpStream};
-use std::primitive;
-use std::slice::SliceIndex;
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
 use std::thread;
-use std::time::Duration;
 
 pub mod master_file;
 pub mod zone;
@@ -78,7 +71,7 @@ impl NameServer {
 
     pub fn run_name_server(
         &mut self,
-        mut name_server_ip_address: String,
+        name_server_ip_address: String,
         local_resolver_ip_and_port: String,
         rx_add_ns_udp: Receiver<(String, ResourceRecord)>,
         rx_delete_ns_udp: Receiver<(String, String)>,
@@ -116,7 +109,7 @@ impl NameServer {
     // Runs an udp name server
     pub fn run_name_server_udp(
         &mut self,
-        mut name_server_ip_address: String,
+        name_server_ip_address: String,
         local_resolver_ip_and_port: String,
         rx_add_ns_udp: Receiver<(String, ResourceRecord)>,
         rx_delete_ns_udp: Receiver<(String, String)>,
@@ -136,10 +129,10 @@ impl NameServer {
 
         loop {
             // We receive the msg
-            let mut dns_message_option = Resolver::receive_udp_msg(socket.try_clone().unwrap());
+            let dns_message_option = Resolver::receive_udp_msg(socket.try_clone().unwrap());
 
             // Creates an empty msg and address
-            let (mut dns_message, mut src_address) = (DnsMessage::new(), "".to_string());
+            let (mut dns_message, src_address);
 
             // Checks the message
             match dns_message_option {
@@ -331,7 +324,7 @@ impl NameServer {
 
     pub fn run_name_server_tcp(
         &mut self,
-        mut name_server_ip_address: String,
+        name_server_ip_address: String,
         local_resolver_ip_and_port: String,
         rx_add_ns_tcp: Receiver<(String, ResourceRecord)>,
         rx_delete_ns_tcp: Receiver<(String, String)>,
@@ -349,9 +342,9 @@ impl NameServer {
         loop {
             // Accepts the connection
             match listener.accept() {
-                Ok((mut stream, src_address)) => {
+                Ok((stream, _)) => {
                     // We receive the msg
-                    let mut received_msg =
+                    let received_msg =
                         Resolver::receive_tcp_msg(stream.try_clone().unwrap()).unwrap();
 
                     // Delete from cache
@@ -419,21 +412,17 @@ impl NameServer {
                     // Checks parsed msg
                     match dns_message_parse_result {
                         Ok(_) => {}
-                        Err(e) => {
+                        Err(_) => {
                             // Sends a format error if the msg is not correctly parsed
                             let dns_msg_format_error = DnsMessage::format_error_msg();
 
-                            NameServer::send_response_by_tcp(
-                                dns_msg_format_error,
-                                src_address.clone().to_string(),
-                                stream,
-                            );
+                            NameServer::send_response_by_tcp(dns_msg_format_error, stream);
 
                             continue;
                         }
                     }
 
-                    let mut dns_message = dns_message_parse_result.unwrap();
+                    let dns_message = dns_message_parse_result.unwrap();
 
                     // If the msg is a query
                     if dns_message.get_header().get_qr() == false {
@@ -446,11 +435,7 @@ impl NameServer {
                                 DnsMessage::not_implemented_msg(dns_message.clone());
 
                             // Sends the Not Implemented msg
-                            NameServer::send_response_by_tcp(
-                                not_implemented_msg,
-                                src_address.to_string(),
-                                stream,
-                            );
+                            NameServer::send_response_by_tcp(not_implemented_msg, stream);
 
                             continue;
                         }
@@ -468,7 +453,6 @@ impl NameServer {
                         // Creates a new thread to process the msg
                         thread::spawn(move || {
                             let query_id = dns_message.get_query_id();
-                            let qtype = dns_message.get_question().get_qtype();
 
                             // Set RA bit to 1
                             let mut ra = true;
@@ -484,7 +468,7 @@ impl NameServer {
                             let rd = new_msg.get_header().get_rd();
 
                             // If recursion
-                            if (rd == true && ra == true) {
+                            if rd == true && ra == true {
                                 // Gets the answer
                                 let mut response_dns_msg = NameServer::step_5_tcp(
                                     resolver_ip_clone,
@@ -499,7 +483,6 @@ impl NameServer {
                                 // Sends the response
                                 NameServer::send_response_by_tcp(
                                     response_dns_msg,
-                                    src_address.to_string(),
                                     stream.try_clone().unwrap(),
                                 );
                             } else {
@@ -518,16 +501,12 @@ impl NameServer {
                                 response_dns_msg.set_query_id(query_id);
 
                                 // Sends the answer
-                                NameServer::send_response_by_tcp(
-                                    response_dns_msg,
-                                    src_address.to_string(),
-                                    stream,
-                                );
+                                NameServer::send_response_by_tcp(response_dns_msg, stream);
                             }
                         });
                     }
                 }
-                Err(e) => {}
+                Err(_) => {}
             }
         }
     }
@@ -537,7 +516,7 @@ impl NameServer {
 impl NameServer {
     // Step 2 from RFC 1034
     pub fn search_nearest_ancestor_zone(
-        mut zones: HashMap<u16, HashMap<String, NSZone>>,
+        zones: HashMap<u16, HashMap<String, NSZone>>,
         mut qname: String,
         qclass: u16,
     ) -> (NSZone, bool) {
@@ -545,7 +524,7 @@ impl NameServer {
         let zones_by_class_option = zones.get(&qclass);
 
         match zones_by_class_option {
-            Some(val) => {}
+            Some(_) => {}
             None => return (NSZone::new(), false),
         }
         //
@@ -553,7 +532,7 @@ impl NameServer {
         let zones_by_class = zones_by_class_option.unwrap();
 
         // If there are a zone
-        let (mut zone, mut available) = match zones_by_class.get(&qname) {
+        let (zone, available) = match zones_by_class.get(&qname) {
             Some(val) => (val.clone(), true),
             None => (NSZone::new(), false),
         };
@@ -671,7 +650,7 @@ impl NameServer {
             let mut all_answers = Vec::new();
 
             // Gets all answers for all classes
-            for (class, hashzones) in zones.iter() {
+            for (class, _hashzones) in zones.iter() {
                 let (zone, available) = NameServer::search_nearest_ancestor_zone(
                     zones.clone(),
                     qname.clone(),
@@ -862,7 +841,7 @@ impl NameServer {
         let mut additional = Vec::<ResourceRecord>::new();
 
         for ns_rr in ns_rrs {
-            let mut name_ns = match ns_rr.get_rdata() {
+            let name_ns = match ns_rr.get_rdata() {
                 Rdata::SomeNsRdata(val) => val.get_nsdname().get_name(),
                 _ => unreachable!(),
             };
@@ -879,7 +858,7 @@ impl NameServer {
                         let new_ns_name = name_ns[..index - 1].to_string();
 
                         let labels: Vec<&str> = new_ns_name.split(".").collect();
-                        let mut a_glue_rrs = Vec::<ResourceRecord>::new();
+                        let mut a_glue_rrs;
                         let mut glue_zone = zone.clone();
 
                         // Goes down for the tree looking for the zone with glue rrs
@@ -1045,7 +1024,7 @@ impl NameServer {
 
             // Looks for authoritive data in cache
             while domain_name != "".to_string() {
-                let mut rrs = cache.get(domain_name.clone(), "NS".to_string());
+                let rrs = cache.get(domain_name.clone(), "NS".to_string());
 
                 if rrs.len() > 0 {
                     for rr in rrs {
@@ -1189,10 +1168,13 @@ impl NameServer {
         header.set_id(new_id);
         msg.set_header(header);
 
-        tx.send((vec![(old_id, src_address)], new_id));
+        tx.send((vec![(old_id, src_address)], new_id))
+            .expect("Error sending data");
 
         // Send request to resolver
-        socket.send_to(&msg.to_bytes(), resolver_ip_and_port);
+        socket
+            .send_to(&msg.to_bytes(), resolver_ip_and_port)
+            .expect("Couldn't send data");
     }
 
     // Sends the response to the address by udp
@@ -1212,8 +1194,6 @@ impl NameServer {
             response_header.set_tc(true);
             response.set_header(response_header);
 
-            let response_bytes = response.to_bytes();
-
             socket
                 .send_to(&bytes, src_address)
                 .expect("failed to send message");
@@ -1230,7 +1210,6 @@ impl NameServer {
         cache: DnsCache,
         zones: HashMap<u16, HashMap<String, NSZone>>,
     ) -> DnsMessage {
-        let old_id = msg.get_query_id();
         let mut rng = thread_rng();
         let new_id: u16 = rng.gen();
 
@@ -1248,10 +1227,12 @@ impl NameServer {
 
         // Send query to local resolver
         let mut stream = TcpStream::connect(resolver_ip_and_port).unwrap();
-        stream.write(&full_msg);
+        stream
+            .write(&full_msg)
+            .expect("Couldn't send query to resolver");
 
         // Receives the response
-        let mut received_msg = Resolver::receive_tcp_msg(stream).unwrap();
+        let received_msg = Resolver::receive_tcp_msg(stream).unwrap();
 
         // Parse the response
         let dns_response_result = DnsMessage::from_bytes(&received_msg);
@@ -1259,7 +1240,7 @@ impl NameServer {
         // Checks the parse
         match dns_response_result {
             Ok(_) => {}
-            Err(e) => {
+            Err(_) => {
                 return DnsMessage::format_error_msg();
             }
         }
@@ -1271,7 +1252,7 @@ impl NameServer {
     }
 
     // Sends response by TCP
-    fn send_response_by_tcp(mut msg: DnsMessage, address: String, mut stream: TcpStream) {
+    fn send_response_by_tcp(mut msg: DnsMessage, mut stream: TcpStream) {
         // Updates headers counters
         msg.update_header_counters();
 
@@ -1284,7 +1265,7 @@ impl NameServer {
         let full_msg = [&tcp_bytes_length, bytes.as_slice()].concat();
 
         // Sends the msg
-        stream.write(&full_msg);
+        stream.write(&full_msg).expect("Couldn't send response");
     }
 }
 
@@ -1345,10 +1326,21 @@ impl NameServer {
         tx_ns_udp: Sender<(String, String)>,
         tx_ns_tcp: Sender<(String, String)>,
     ) {
-        tx_resolver_udp.send((domain_name.clone(), resource_record.clone()));
-        tx_resolver_tcp.send((domain_name.clone(), resource_record.clone()));
-        tx_ns_udp.send((domain_name.clone(), resource_record.clone()));
-        tx_ns_tcp.send((domain_name.clone(), resource_record.clone()));
+        // For error handling
+        let default = ();
+
+        tx_resolver_udp
+            .send((domain_name.clone(), resource_record.clone()))
+            .unwrap_or(default);
+        tx_resolver_tcp
+            .send((domain_name.clone(), resource_record.clone()))
+            .unwrap_or(default);
+        tx_ns_udp
+            .send((domain_name.clone(), resource_record.clone()))
+            .unwrap_or(default);
+        tx_ns_tcp
+            .send((domain_name.clone(), resource_record.clone()))
+            .unwrap_or(default);
     }
 }
 

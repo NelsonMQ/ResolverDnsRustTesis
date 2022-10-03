@@ -174,9 +174,6 @@ impl Question {
 
 // Tests
 mod test {
-    use super::Question;
-    use crate::domain_name::DomainName;
-
     #[test]
     fn constructor_test() {
         let question = Question::new();

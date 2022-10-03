@@ -439,15 +439,6 @@ impl DnsMessage {
 }
 
 mod test {
-    use crate::domain_name::DomainName;
-    use crate::message::header::Header;
-    use crate::message::question::Question;
-    use crate::message::rdata::a_rdata::ARdata;
-    use crate::message::rdata::txt_rdata::TxtRdata;
-    use crate::message::rdata::Rdata;
-    use crate::message::resource_record::ResourceRecord;
-    use crate::message::DnsMessage;
-
     #[test]
     fn constructor_test() {
         let dns_query_message =
