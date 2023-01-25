@@ -47,13 +47,17 @@ pub fn main() {
 
         client::run_client(host_name.to_string(), qclass, qtype);
     } else if trim_input_line == "TRE" {
-        let mut input_line = String::new();
-        println!("Enter file with websites domains: ");
-        std::io::stdin().read_line(&mut input_line).unwrap();
-
-        let file_name_experiment = input_line.trim();
-
-        experiments::response_time_experiment(file_name_experiment.to_string(), false);
+        experiments::response_time_experiment(
+            "websites.txt".to_string(),
+            false,
+            "time_results.txt".to_string(),
+        );
+    } else if trim_input_line == "TRENA" {
+        experiments::response_time_experiment(
+            "websites.txt".to_string(),
+            true,
+            "time_results_na.txt".to_string(),
+        );
     } else if trim_input_line == "MCC1" {
         let master_files_case_1 = [
             "root_case_1.txt".to_string(),

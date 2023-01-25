@@ -7,15 +7,21 @@ use crate::name_server::zone::NSZone;
 use crate::name_server::NameServer;
 use crate::resolver::slist::Slist;
 use crate::resolver::Resolver;
+use crate::rr_cache::RRCache;
 
 use crate::config::QUERIES_FOR_CLIENT_REQUEST;
 use crate::config::RESOLVER_IP_PORT;
 use crate::config::USE_CACHE;
 
 use chrono::Utc;
+use rand::seq::SliceRandom;
 use rand::{thread_rng, Rng};
 use std::cmp;
 use std::collections::HashMap;
+use std::fs::File;
+use std::fs::OpenOptions;
+use std::io::BufRead;
+use std::io::BufReader;
 use std::io::Write;
 use std::net::TcpStream;
 use std::net::UdpSocket;
@@ -27,6 +33,10 @@ use std::vec::Vec;
 
 // IP Config in order to ask ns and slist queries
 pub static IP_FOR_SLIST_NS_QUERIES: &'static str = "192.168.1.90";
+
+pub static SAVE_TRACE: &'static bool = &true;
+
+pub static SORT_NS_SLIST: &'static bool = &false;
 
 #[derive(Clone)]
 /// This struct represents a resolver query
@@ -199,7 +209,12 @@ impl ResolverQuery {
             parent_host_name.pop();
 
             // Gets a vector of NS RR for host_name
-            let ns_parent_host_name = cache.get(parent_host_name.to_string(), ns_type.clone());
+            let mut ns_parent_host_name = cache.get(parent_host_name.to_string(), ns_type.clone());
+
+            if *SORT_NS_SLIST {
+                // Sort ns by name
+                ns_parent_host_name.sort_by(|a, b| b.get_domain_name().cmp(&a.get_domain_name()));
+            }
 
             // NXDOMAIN or NODATA
             if ns_parent_host_name.len() > 0 {
@@ -323,6 +338,7 @@ impl ResolverQuery {
             self.set_slist(sbelt.clone());
         } else {
             self.set_slist(new_slist.clone());
+            //self.set_index_to_choose(0);
         }
     }
 
@@ -350,11 +366,16 @@ impl ResolverQuery {
             parent_host_name.pop();
 
             // Gets a vector of NS RR for host_name
-            let ns_parent_host_name = cache.get(parent_host_name.to_string(), ns_type.clone());
+            let mut ns_parent_host_name = cache.get(parent_host_name.to_string(), ns_type.clone());
 
             if ns_parent_host_name.len() == 0 {
                 labels.remove(0);
                 continue;
+            }
+
+            if *SORT_NS_SLIST {
+                // Sort ns by name
+                ns_parent_host_name.sort_by(|a, b| b.get_domain_name().cmp(&a.get_domain_name()));
             }
 
             // NXDOMAIN or NODATA
@@ -1144,12 +1165,29 @@ impl ResolverQuery {
 
         // Set last host name asked
         let host_name = best_server_to_ask.get(&"name".to_string()).unwrap().clone();
-        self.set_last_query_hostname(host_name);
+        self.set_last_query_hostname(host_name.clone());
         //
 
         // Send the resolver query to the resolver for update
         self.get_tx_update_query().send(self.clone()).unwrap_or(());
         //
+
+        if *SAVE_TRACE {
+            let ip_to_ask = best_server_ip.clone();
+            let ns_name = host_name.clone();
+
+            // Open the file to append
+            let mut file = OpenOptions::new()
+                .write(true)
+                .append(true)
+                .open("resolver_traces.txt")
+                .unwrap();
+
+            // Write info
+            write!(file, "{} {}\n", ns_name, ip_to_ask).expect("Couldn't write file");
+        }
+
+        println!("Ip a preguntar: {}", best_server_ip.clone());
 
         // Sends the query
         self.send_udp_query(&msg_to_bytes, best_server_ip, socket);

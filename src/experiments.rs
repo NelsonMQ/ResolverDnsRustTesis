@@ -23,8 +23,11 @@ pub static IP_TO_KILL_RESOLVER: &'static str = "192.168.1.90";
 pub static ROOT_NAMESERVER_IP_PORT: &'static str = "192.168.1.90:58398";
 pub static CHILD_NAMESERVER_IP_PORT: &'static str = "192.168.1.90:58399";
 
+// Numero iteraciones
+pub static ITERATIONS_NUMBER: i32 = 384;
+
 /// Execute the response time experiment
-pub fn response_time_experiment(filename: String, new_algorithm: bool) {
+pub fn response_time_experiment(filename: String, new_algorithm: bool, new_file_name: String) {
     // Open file
     let file = File::open(filename).expect("file not found!");
     let reader = BufReader::new(file);
@@ -36,9 +39,9 @@ pub fn response_time_experiment(filename: String, new_algorithm: bool) {
         // Ask for the website ip 10 times
         let mut i = 0;
 
-        while i < 10 {
+        while i < ITERATIONS_NUMBER {
             // Sleep
-            let ten_millis = Duration::from_millis(2000);
+            let ten_millis = Duration::from_millis(100);
             thread::sleep(ten_millis);
 
             // Run the resolver (the resolver should not save cache)
@@ -97,11 +100,11 @@ pub fn response_time_experiment(filename: String, new_algorithm: bool) {
             ///////
 
             // Sleep
-            let ten_millis = Duration::from_millis(1000);
+            let ten_millis = Duration::from_millis(100);
 
             thread::sleep(ten_millis);
 
-            let (response_time, _, _) = client::run_client(line.clone(), 1, 1);
+            let (response_time, _, _, mut answers_ip) = client::run_client(line.clone(), 1, 1);
 
             // Sending Udp msg to kill resolver
             let socket =
@@ -120,22 +123,35 @@ pub fn response_time_experiment(filename: String, new_algorithm: bool) {
                 .expect("Couldn't send data to kill resolver");
 
             // Sleep
-            let ten_millis = Duration::from_millis(2000);
-            thread::sleep(ten_millis);
+            //let ten_millis = Duration::from_millis(1000);
+            //thread::sleep(ten_millis);
 
             // Save response time
             // Open the file to append
             let mut file = OpenOptions::new()
                 .write(true)
                 .append(true)
-                .open("response_time_results.txt")
+                .open(new_file_name.as_str())
                 .unwrap();
 
-            // Write info
-            write!(file, "{} {}\n", line.clone(), response_time.as_millis())
+            // Write domain name and response time
+            write!(file, "{} {}", line.clone(), response_time.as_micros())
                 .expect("Couldn't write file");
 
+            // Sort answers
+            answers_ip.sort();
+
+            // Write answers
+            for answer in &answers_ip {
+                write!(file, " {}", answer).expect("Couldn't write file");
+            }
+
+            // Write new line
+            write!(file, "\n").expect("Couldn't write file");
+
             i = i + 1;
+
+            println!("Fin iteración");
         }
     }
 }
@@ -329,7 +345,7 @@ pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>, new
         let ten_millis = Duration::from_millis(1000);
         thread::sleep(ten_millis);
 
-        let (response_time_first, _, _) = client::run_client(first_query.clone(), 1, 1);
+        let (response_time_first, _, _, _) = client::run_client(first_query.clone(), 1, 1);
 
         // Case 5 is case 3 for new algorithm
         if case == 5 {
@@ -392,7 +408,7 @@ pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>, new
         let ten_millis = Duration::from_millis(2000);
         thread::sleep(ten_millis);
 
-        let (response_time_second, _, _) = client::run_client(second_query.clone(), 1, 1);
+        let (response_time_second, _, _, _) = client::run_client(second_query.clone(), 1, 1);
 
         // Sending Udp msg to kill resolver
         let socket = ResolverQuery::initilize_socket_udp(IP_TO_KILL_RESOLVER.to_string()).unwrap();
@@ -538,13 +554,13 @@ pub fn missconfigured_experiment_nxdomain(case: u8, new_algorithm: bool) {
         let ten_millis = Duration::from_millis(1000);
         thread::sleep(ten_millis);
 
-        let (response_time_first, _, _) = client::run_client(first_query.clone(), 1, 1);
+        let (response_time_first, _, _, _) = client::run_client(first_query.clone(), 1, 1);
 
         // Sleep
         let ten_millis = Duration::from_millis(1000);
         thread::sleep(ten_millis);
 
-        let (response_time_second, _, _) = client::run_client(second_query.clone(), 1, 1);
+        let (response_time_second, _, _, _) = client::run_client(second_query.clone(), 1, 1);
 
         // Sending Udp msg to kill resolver
         let socket = ResolverQuery::initilize_socket_udp(IP_TO_KILL_RESOLVER.to_string()).unwrap();
@@ -744,7 +760,7 @@ pub fn get_ns_records_from_child_zone(domains_file: String, save_file: String) {
         domain_name.pop();
 
         // Get NS records
-        let (_, ns_records, temporary_error) = client::run_client(domain_name.clone(), 1, 2);
+        let (_, ns_records, temporary_error, _) = client::run_client(domain_name.clone(), 1, 2);
 
         if !temporary_error {
             // Open the file to append
@@ -1028,7 +1044,7 @@ pub fn find_affected_domains_experiment(
         let domain_name = elements[0].clone();
 
         // Query to get NS records from parent zone
-        let (response_time_first, _, _) = client::run_client(domain_name.clone(), 1, 1);
+        let (response_time_first, _, _, _) = client::run_client(domain_name.clone(), 1, 1);
 
         if new_algorithm {
             // Sleep
@@ -1038,7 +1054,7 @@ pub fn find_affected_domains_experiment(
         }
 
         // Second query to test the missconfigured domain
-        let (response_time_second, _, _) = client::run_client(domain_name.clone(), 1, 1);
+        let (response_time_second, _, _, _) = client::run_client(domain_name.clone(), 1, 1);
 
         // Sending Udp msg to kill resolver
         let socket = ResolverQuery::initilize_socket_udp(IP_TO_KILL_RESOLVER.to_string()).unwrap();
@@ -1131,7 +1147,7 @@ fn test_affected_domain_algorithm(domain_name: String, new_algorithm: bool) -> V
     thread::sleep(ten_millis);
 
     // Query to get NS records from parent zone
-    let (response_time_first, _, _) = client::run_client(domain_name.clone(), 1, 1);
+    let (response_time_first, _, _, _) = client::run_client(domain_name.clone(), 1, 1);
 
     if new_algorithm {
         // Sleep
@@ -1140,7 +1156,7 @@ fn test_affected_domain_algorithm(domain_name: String, new_algorithm: bool) -> V
     }
 
     // Second query to test the missconfigured domain
-    let (response_time_second, _, _) = client::run_client(domain_name.clone(), 1, 1);
+    let (response_time_second, _, _, _) = client::run_client(domain_name.clone(), 1, 1);
 
     // Sending Udp msg to kill resolver
     let socket = ResolverQuery::initilize_socket_udp(IP_TO_KILL_RESOLVER.to_string()).unwrap();

@@ -1,3 +1,4 @@
+use crate::message::rdata::Rdata;
 use crate::message::resource_record::ResourceRecord;
 use chrono::prelude::*;
 
@@ -16,6 +17,8 @@ pub struct RRCache {
     nxdomain: bool,
     // NODATA
     no_data: bool,
+    //Domain name
+    domain_name: String,
 }
 
 impl RRCache {
@@ -35,6 +38,16 @@ impl RRCache {
         nxdomain: bool,
         no_data: bool,
     ) -> Self {
+        let mut rdata = "".to_string();
+        if resource_record.get_type_code() == 2 {
+            let rdata_object = match resource_record.get_rdata() {
+                Rdata::SomeNsRdata(val) => val.clone(),
+                _ => unreachable!(),
+            };
+
+            rdata = rdata_object.get_nsdname().get_name();
+        }
+
         let rr_cache = RRCache {
             resource_record: resource_record,
             response_time: 5000,
@@ -42,6 +55,7 @@ impl RRCache {
             data_ranking: data_ranking,
             nxdomain: nxdomain,
             no_data: no_data,
+            domain_name: rdata.to_string(),
         };
 
         rr_cache
@@ -78,6 +92,11 @@ impl RRCache {
     // Gets no_data field
     pub fn get_no_data(&self) -> bool {
         self.no_data
+    }
+
+    // Gets domain_name field
+    pub fn get_domain_name(&self) -> String {
+        self.domain_name.clone()
     }
 }
 
