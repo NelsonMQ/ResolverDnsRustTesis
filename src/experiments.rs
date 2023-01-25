@@ -6,6 +6,7 @@ use crate::resolver::Resolver;
 
 use crate::config::RESOLVER_IP_PORT;
 use crate::config::SBELT_ROOT_IPS;
+use crate::config::SBELT_ROOT_NAMES;
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -79,8 +80,12 @@ pub fn response_time_experiment(filename: String, new_algorithm: bool, new_file_
 
             let mut sbelt = Slist::new();
 
-            for ip in SBELT_ROOT_IPS {
-                sbelt.insert(".".to_string(), ip.to_string(), 5000);
+            for i in 0..SBELT_ROOT_IPS.len() {
+                sbelt.insert(
+                    SBELT_ROOT_NAMES[i].to_string(),
+                    SBELT_ROOT_IPS[i].to_string(),
+                    5000,
+                );
             }
 
             resolver.set_sbelt(sbelt);
@@ -323,8 +328,12 @@ pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>, new
 
         let mut sbelt = Slist::new();
 
-        for ip in SBELT_ROOT_IPS {
-            sbelt.insert(".".to_string(), ip.to_string(), 5000);
+        for i in 0..SBELT_ROOT_IPS.len() {
+            sbelt.insert(
+                SBELT_ROOT_NAMES[i].to_string(),
+                SBELT_ROOT_IPS[i].to_string(),
+                5000,
+            );
         }
 
         resolver.set_sbelt(sbelt);
@@ -532,8 +541,12 @@ pub fn missconfigured_experiment_nxdomain(case: u8, new_algorithm: bool) {
 
         let mut sbelt = Slist::new();
 
-        for ip in SBELT_ROOT_IPS {
-            sbelt.insert(".".to_string(), ip.to_string(), 5000);
+        for i in 0..SBELT_ROOT_IPS.len() {
+            sbelt.insert(
+                SBELT_ROOT_NAMES[i].to_string(),
+                SBELT_ROOT_IPS[i].to_string(),
+                5000,
+            );
         }
 
         resolver.set_sbelt(sbelt);
@@ -722,8 +735,12 @@ pub fn get_ns_records_from_child_zone(domains_file: String, save_file: String) {
 
     let mut sbelt = Slist::new();
 
-    for ip in SBELT_ROOT_IPS {
-        sbelt.insert(".".to_string(), ip.to_string(), 5000);
+    for i in 0..SBELT_ROOT_IPS.len() {
+        sbelt.insert(
+            SBELT_ROOT_NAMES[i].to_string(),
+            SBELT_ROOT_IPS[i].to_string(),
+            5000,
+        );
     }
 
     resolver.set_sbelt(sbelt);
@@ -845,8 +862,12 @@ pub fn get_ns_records_from_child_zone(domains_file: String, save_file: String) {
 
             let mut sbelt = Slist::new();
 
-            for ip in SBELT_ROOT_IPS {
-                sbelt.insert(".".to_string(), ip.to_string(), 5000);
+            for i in 0..SBELT_ROOT_IPS.len() {
+                sbelt.insert(
+                    SBELT_ROOT_NAMES[i].to_string(),
+                    SBELT_ROOT_IPS[i].to_string(),
+                    5000,
+                );
             }
 
             resolver.set_sbelt(sbelt);
@@ -1013,8 +1034,12 @@ pub fn find_affected_domains_experiment(
 
         let mut sbelt = Slist::new();
 
-        for ip in SBELT_ROOT_IPS {
-            sbelt.insert(".".to_string(), ip.to_string(), 5000);
+        for i in 0..SBELT_ROOT_IPS.len() {
+            sbelt.insert(
+                SBELT_ROOT_NAMES[i].to_string(),
+                SBELT_ROOT_IPS[i].to_string(),
+                5000,
+            );
         }
 
         resolver.set_sbelt(sbelt);
@@ -1124,8 +1149,12 @@ fn test_affected_domain_algorithm(domain_name: String, new_algorithm: bool) -> V
 
     let mut sbelt = Slist::new();
 
-    for ip in SBELT_ROOT_IPS {
-        sbelt.insert(".".to_string(), ip.to_string(), 5000);
+    for i in 0..SBELT_ROOT_IPS.len() {
+        sbelt.insert(
+            SBELT_ROOT_NAMES[i].to_string(),
+            SBELT_ROOT_IPS[i].to_string(),
+            5000,
+        );
     }
 
     resolver.set_sbelt(sbelt);

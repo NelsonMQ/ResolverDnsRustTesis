@@ -186,7 +186,7 @@ impl ResolverQuery {
     }
 
     // Initialize the slist for UDP
-    pub fn initialize_slist_udp(&mut self, sbelt: Slist, start_look_up_host_name: String) {
+    pub fn initialize_slist_udp(&mut self, mut sbelt: Slist, start_look_up_host_name: String) {
         // Gets info to initialize slist
         let host_name = start_look_up_host_name;
         let mut cache = self.get_cache();
@@ -335,10 +335,16 @@ impl ResolverQuery {
 
         // If zone name equivalent is -1, initialize slist from sbelt
         if new_slist.get_zone_name_equivalent() == -1 {
+            if *SORT_NS_SLIST == false {
+                let mut ns_list = sbelt.get_ns_list();
+                ns_list.shuffle(&mut thread_rng());
+
+                sbelt.set_ns_list(ns_list);
+            }
+
             self.set_slist(sbelt.clone());
         } else {
             self.set_slist(new_slist.clone());
-            //self.set_index_to_choose(0);
         }
     }
 

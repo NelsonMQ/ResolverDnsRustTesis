@@ -16,6 +16,7 @@ use std::sync::mpsc;
 
 use crate::config::RESOLVER_IP_PORT;
 use crate::config::SBELT_ROOT_IPS;
+use crate::config::SBELT_ROOT_NAMES;
 
 pub fn main() {
     // Users input
@@ -217,8 +218,12 @@ pub fn main() {
 
             let mut sbelt = Slist::new();
 
-            for ip in SBELT_ROOT_IPS {
-                sbelt.insert(".".to_string(), ip.to_string(), 5000);
+            for i in 0..SBELT_ROOT_IPS.len() {
+                sbelt.insert(
+                    SBELT_ROOT_NAMES[i].to_string(),
+                    SBELT_ROOT_IPS[i].to_string(),
+                    5000,
+                );
             }
 
             resolver.set_sbelt(sbelt);
@@ -253,8 +258,12 @@ pub fn main() {
 
             let mut sbelt = Slist::new();
 
-            for ip in SBELT_ROOT_IPS {
-                sbelt.insert(".".to_string(), ip.to_string(), 5000);
+            for i in 0..SBELT_ROOT_IPS.len() {
+                sbelt.insert(
+                    SBELT_ROOT_NAMES[i].to_string(),
+                    SBELT_ROOT_IPS[i].to_string(),
+                    5000,
+                );
             }
 
             resolver.set_sbelt(sbelt);

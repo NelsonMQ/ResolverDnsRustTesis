@@ -4,6 +4,8 @@ use crate::message::resource_record::ResourceRecord;
 use crate::rr_cache::RRCache;
 
 use chrono::prelude::*;
+use rand::seq::SliceRandom;
+use rand::thread_rng;
 use std::collections::HashMap;
 
 #[derive(Clone)]
@@ -150,6 +152,8 @@ impl DnsCache {
                 cache.insert(rr_type, new_x);
 
                 self.set_cache(cache);
+
+                rr_cache_vec.shuffle(&mut thread_rng());
 
                 return rr_cache_vec;
             }
