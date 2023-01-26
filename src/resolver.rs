@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use std::io::Read;
 use std::io::Write;
 use std::net::UdpSocket;
+use std::fs::OpenOptions;
 use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
@@ -24,6 +25,8 @@ use std::vec::Vec;
 
 pub mod resolver_query;
 pub mod slist;
+
+pub static SAVE_TRACE: &'static bool = &true;
 
 #[derive(Clone)]
 /// Struct that represents a dns resolver
@@ -582,6 +585,18 @@ impl Resolver {
                                 tx_query_delete_clone
                                     .send(resolver_query.clone())
                                     .unwrap_or(());
+                                
+                                if *SAVE_TRACE {
+                                    // Open the file to append
+                                    let mut file = OpenOptions::new()
+                                        .write(true)
+                                        .append(true)
+                                        .open("resolver_traces.txt")
+                                        .unwrap();
+
+                                    // Write info
+                                    write!(file, "--------------------\n").expect("Couldn't write file");
+                                }
 
                                 // Sends the response to the client
                                 Resolver::send_answer_by_udp(
