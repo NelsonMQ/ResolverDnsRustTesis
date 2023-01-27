@@ -586,7 +586,8 @@ impl Resolver {
                                     .send(resolver_query.clone())
                                     .unwrap_or(());
                                 
-                                if *SAVE_TRACE {
+                                if *SAVE_TRACE && answer[0].get_type_code() == 1 {
+
                                     // Open the file to append
                                     let mut file = OpenOptions::new()
                                         .write(true)

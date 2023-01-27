@@ -32,7 +32,7 @@ use std::time::Duration;
 use std::vec::Vec;
 
 // IP Config in order to ask ns and slist queries
-pub static IP_FOR_SLIST_NS_QUERIES: &'static str = "192.168.1.90";
+pub static IP_FOR_SLIST_NS_QUERIES: &'static str = "192.168.0.19";
 
 pub static SAVE_TRACE: &'static bool = &true;
 
@@ -1181,6 +1181,8 @@ impl ResolverQuery {
         if *SAVE_TRACE {
             let ip_to_ask = best_server_ip.clone();
             let ns_name = host_name.clone();
+            let stype = self.get_stype();
+            let sname = self.get_sname();
 
             // Open the file to append
             let mut file = OpenOptions::new()
@@ -1190,7 +1192,7 @@ impl ResolverQuery {
                 .unwrap();
 
             // Write info
-            write!(file, "{} {}\n", ns_name, ip_to_ask).expect("Couldn't write file");
+            write!(file, "{} {} {} {}\n", ns_name, ip_to_ask, sname.clone(), stype.clone()).expect("Couldn't write file");
         }
 
         println!("Ip a preguntar: {}", best_server_ip.clone());
@@ -1607,7 +1609,7 @@ impl ResolverQuery {
             // If there is no ip address, we send a query to obtain it
             if ip_addr == "".to_string() {
                 // Creates an UDP socket
-                let ip = "192.168.1.90".to_string();
+                let ip = "192.168.0.19".to_string();
                 let mut rng = thread_rng();
 
                 let slist_socket = Self::initilize_socket_udp(ip).unwrap();
