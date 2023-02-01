@@ -183,7 +183,7 @@ impl Resolver {
         // Creates an UDP socket
         let socket = UdpSocket::bind(&host_address_and_port).expect("Failed to bind host socket");
         socket
-            .set_read_timeout(Some(Duration::from_millis(1000)))
+            .set_read_timeout(Some(Duration::from_millis(100)))
             .expect("Failed to set timeout");
 
         // Receives messages
@@ -240,7 +240,6 @@ impl Resolver {
             //
 
             // Update response time cache
-
             let mut received_update = rx_update_cache_udp.try_iter();
 
             let mut next_value = received_update.next();
@@ -267,6 +266,7 @@ impl Resolver {
 
             while next_value.is_none() == false {
                 let (name, rr, data_ranking, nxdomain, no_data, rr_type) = next_value.unwrap();
+                //println!("Agregando al cache: {} {} {}", name.clone(), data_ranking.clone(), rr_type.clone());
                 cache.add(name, rr, data_ranking, nxdomain, no_data, rr_type);
                 next_value = received_add.next();
             }
@@ -325,6 +325,8 @@ impl Resolver {
 
             // We receive the msg
             let dns_message_option = Resolver::receive_udp_msg(socket.try_clone().unwrap());
+
+            //println!("Mensaje en resolver principal");
 
             // Creates an empty msg and address
             let (dns_message, src_address);
@@ -758,6 +760,8 @@ impl Resolver {
                     }
 
                     let new_algorithm = self.new_algorithm;
+                    
+                    //println!("TCP!!!!");
 
                     // Creates a new thread to process the msg
                     thread::spawn(move || {
@@ -830,8 +834,8 @@ impl Resolver {
 impl Resolver {
     // Receives and UDP message
     pub fn receive_udp_msg(socket: UdpSocket) -> Option<(DnsMessage, String)> {
-        // 512 bytes buffer
-        let mut msg = [0; 512];
+        // 4096 bytes buffer
+        let mut msg = [0; 4096];
 
         // receives a msg
         let (number_of_bytes_msg, address) = match socket.recv_from(&mut msg) {
@@ -859,7 +863,11 @@ impl Resolver {
         }
 
         // Get TC bit
-        let tc = (msg[2] as u8 & 0b00000010) >> 1;
+        //let tc = (msg[2] as u8 & 0b00000010) >> 1;
+
+        let tc = 0;
+
+        //println!("TC bit: {}", tc.clone());
 
         let dns_msg_parsed_result;
 
@@ -934,7 +942,7 @@ impl Resolver {
 
         // Receive all the msg
         while tcp_msg_len > 0 {
-            let mut msg = [0; 512];
+            let mut msg = [0; 4096];
             let number_of_bytes_msg = stream.read(&mut msg).expect("No data received");
 
             let mut kill_resolver = true;
@@ -964,7 +972,7 @@ impl Resolver {
         let bytes = response.to_bytes();
 
         // Send the message
-        if bytes.len() <= 512 {
+        if bytes.len() <= 4096 {
             socket
                 .send_to(&bytes, src_address)
                 .expect("failed to send message");
@@ -982,7 +990,7 @@ impl Resolver {
             let response_bytes = response_copy.to_bytes();
 
             socket
-                .send_to(&response_bytes[0..512], src_address)
+                .send_to(&response_bytes[0..4096], src_address)
                 .expect("failed to send message");
         }
     }

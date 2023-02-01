@@ -36,7 +36,7 @@ pub static IP_FOR_SLIST_NS_QUERIES: &'static str = "192.168.0.19";
 
 pub static SAVE_TRACE: &'static bool = &true;
 
-pub static SORT_NS_SLIST: &'static bool = &false;
+pub static SORT_NS_SLIST: &'static bool = &true;
 
 #[derive(Clone)]
 /// This struct represents a resolver query
@@ -309,6 +309,8 @@ impl ResolverQuery {
                     ip_found = ip_found + 1;
                 }
             }
+
+            //println!("IP found: {}", ip_found);
 
             // If there is no ip address in any NS RR
             if ip_found == 0 {
@@ -757,6 +759,8 @@ impl ResolverQuery {
             // Get qname
             let qname = msg.get_question().get_qname().get_name();
 
+            //println!("Step 4a for {}", qname.clone());
+
             // Check if qname contains *, if its true dont cache the data
             if qname.contains("*") == false {
                 // If the answers are autorative, we cache them
@@ -1096,6 +1100,8 @@ impl ResolverQuery {
         // Gets the index to choose in slist
         let mut index_to_choose = self.get_index_to_choose() % slist_len as u16;
 
+        //println!("Index to choose: {}", index_to_choose);
+
         // Gets the best server to ask
         let mut best_server_to_ask = slist.get(index_to_choose);
         let mut best_server_ip = best_server_to_ask
@@ -1111,6 +1117,7 @@ impl ResolverQuery {
             if counter > slist.len() {
                 let new_slist = self.send_internal_queries_for_slist_udp(self.get_slist());
                 self.set_slist(new_slist.clone());
+                self.set_index_to_choose(slist.len() as u16 - 2);
 
                 if new_slist.len() <= 0 {
                     self.get_tx_delete_query().send(self.clone()).unwrap_or(());
@@ -1282,6 +1289,22 @@ impl ResolverQuery {
         // We check if cache exist for the ns
         let (exist_in_cache, data_ranking) =
             self.exist_cache_data(qname.clone(), authority[0].clone());
+        
+        let cache =self.get_cache();
+        
+        /*
+        for (key, value) in &cache.get_cache() {
+            for (key2, value2) in value.iter() {
+                for v in value2.iter() {
+                    println!("{} {}: {} {}", key, key2,v.get_domain_name(), v.get_data_ranking());
+                }
+            }
+        }
+        */
+
+        //println!("Data ranking: {}, Exist cache: {}, qname: {}", data_ranking.clone(), exist_in_cache.clone(), qname.clone());
+
+
 
         if exist_in_cache == false || data_ranking > 4 {
             if exist_in_cache == true {
@@ -1361,7 +1384,7 @@ impl ResolverQuery {
         self.step_2_udp();
         self.step_3_udp(socket.try_clone().unwrap());
 
-        if self.new_algorithm == true && data_ranking > 3 {
+        if self.new_algorithm == true && data_ranking > 4 {
             self.send_internal_queries_for_child_ns_udp(qname);
         }
     }
@@ -1573,6 +1596,7 @@ impl ResolverQuery {
             slist_socket
                 .send_to(&msg_to_bytes, RESOLVER_IP_PORT)
                 .expect("Couldn't send child NS query");
+            //println!("Internal query NS enviada: {}", qname.clone())
         });
     }
 
@@ -1666,9 +1690,9 @@ impl ResolverQuery {
 
                     slist.delete(qname.clone());
 
-                    slist.insert(qname.clone(), ip_string.to_string(), 5000 as u32);
+                    slist.insert(qname.clone(), ip_string.to_string().clone(), 5000 as u32);
 
-                    break;
+                    return slist;
                 }
                 if msg_response.get_header().get_rcode() != 0 {
                     slist.delete(qname.clone());
@@ -2394,6 +2418,9 @@ impl ResolverQuery {
     ) -> (bool, u8) {
         let mut cache = self.get_cache();
         let rr_type = resource_record.get_string_type();
+
+        /////////////////////////
+        /////////////////////////
 
         // Gets the data
         let data_in_cache = cache.get(domain_name, rr_type);
