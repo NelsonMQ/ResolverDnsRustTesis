@@ -183,7 +183,7 @@ impl Resolver {
         // Creates an UDP socket
         let socket = UdpSocket::bind(&host_address_and_port).expect("Failed to bind host socket");
         socket
-            .set_read_timeout(Some(Duration::from_millis(100)))
+            .set_read_timeout(Some(Duration::from_millis(50000)))
             .expect("Failed to set timeout");
 
         // Receives messages
@@ -271,6 +271,8 @@ impl Resolver {
                 next_value = received_add.next();
             }
 
+            //println!("set cache");
+
             self.set_cache(cache);
             //
 
@@ -323,8 +325,30 @@ impl Resolver {
                 }
             }
 
+            //println!("Esperando Mensaje en resolver principal");
+
             // We receive the msg
             let dns_message_option = Resolver::receive_udp_msg(socket.try_clone().unwrap());
+
+            // Adding to Cache
+
+            let mut received_add = rx_add_udp.try_iter();
+
+            let mut next_value = received_add.next();
+
+            let mut cache = self.get_cache();
+
+            while next_value.is_none() == false {
+                let (name, rr, data_ranking, nxdomain, no_data, rr_type) = next_value.unwrap();
+                //println!("Agregando al cache: {} {} {}", name.clone(), data_ranking.clone(), rr_type.clone());
+                cache.add(name, rr, data_ranking, nxdomain, no_data, rr_type);
+                next_value = received_add.next();
+            }
+
+            //println!("set cache");
+
+            self.set_cache(cache);
+            //
 
             //println!("Mensaje en resolver principal");
 
