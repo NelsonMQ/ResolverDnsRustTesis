@@ -1117,7 +1117,9 @@ impl ResolverQuery {
             if counter > slist.len() {
                 let new_slist = self.send_internal_queries_for_slist_udp(self.get_slist());
                 self.set_slist(new_slist.clone());
-                self.set_index_to_choose(slist.len() as u16 - 2);
+                index_to_choose = slist.len() as u16 - 2;
+                
+                println!("Llega respuesta internal slist");
 
                 if new_slist.len() <= 0 {
                     self.get_tx_delete_query().send(self.clone()).unwrap_or(());
@@ -1129,6 +1131,8 @@ impl ResolverQuery {
             slist = self.get_slist();
             self.set_index_to_choose((index_to_choose + 1) % slist.len() as u16);
             index_to_choose = self.get_index_to_choose();
+
+            println!("index to choose: {}, slist_len: {}", index_to_choose, slist.len());
 
             best_server_to_ask = slist.get(index_to_choose);
             best_server_ip = best_server_to_ask
@@ -1629,7 +1633,7 @@ impl ResolverQuery {
                 .unwrap()
                 .to_lowercase()
                 .to_string();
-
+            println!("Internal query for: {}", qname.clone());
             // If there is no ip address, we send a query to obtain it
             if ip_addr == "".to_string() {
                 // Creates an UDP socket
