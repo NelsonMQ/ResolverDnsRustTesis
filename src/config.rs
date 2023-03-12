@@ -3,6 +3,10 @@
 // ------------- Resolver Config --------------------
 pub static RESOLVER_IP_PORT: &'static str = "192.168.1.90:58396";
 
+//pub static SBELT_ROOT_IPS: [&str; 1] = ["192.168.1.91"];
+
+//pub static SBELT_ROOT_NAMES: [&str; 1] = ["."];
+
 // Add at least 2 root servers and 2 host server (for local network).
 pub static SBELT_ROOT_IPS: [&str; 13] = [
     "198.41.0.4:53",
@@ -37,7 +41,7 @@ pub static SBELT_ROOT_NAMES: [&str; 13] = [
 ];
 
 // Queries quantity for each query, before the resolver panic in a Temporary Error
-pub static QUERIES_FOR_CLIENT_REQUEST: u16 = 20;
+pub static QUERIES_FOR_CLIENT_REQUEST: u16 = 15;
 
 // Cache
 pub static USE_CACHE: bool = true;

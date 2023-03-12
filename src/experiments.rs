@@ -1,5 +1,4 @@
 use crate::client;
-use crate::name_server::NameServer;
 use crate::resolver::resolver_query::ResolverQuery;
 use crate::resolver::slist::Slist;
 use crate::resolver::Resolver;
@@ -49,30 +48,13 @@ pub fn response_time_experiment(filename: String, new_algorithm: bool, new_file_
             // Channels
             let (add_sender_udp, add_recv_udp) = mpsc::channel();
             let (delete_sender_udp, delete_recv_udp) = mpsc::channel();
-            let (add_sender_tcp, add_recv_tcp) = mpsc::channel();
-            let (delete_sender_tcp, delete_recv_tcp) = mpsc::channel();
-            let (add_sender_ns_udp, _add_recv_ns_udp) = mpsc::channel();
-            let (delete_sender_ns_udp, _delete_recv_ns_udp) = mpsc::channel();
-            let (add_sender_ns_tcp, _add_recv_ns_tcp) = mpsc::channel();
-            let (delete_sender_ns_tcp, _delete_recv_ns_tcp) = mpsc::channel();
+
             let (update_cache_sender_udp, rx_update_cache_udp) = mpsc::channel();
-            let (update_cache_sender_tcp, rx_update_cache_tcp) = mpsc::channel();
-            let (update_cache_sender_ns_udp, _rx_update_cache_ns_udp) = mpsc::channel();
-            let (update_cache_sender_ns_tcp, _rx_update_cache_ns_tcp) = mpsc::channel();
 
             let mut resolver = Resolver::new(
                 add_sender_udp.clone(),
                 delete_sender_udp.clone(),
-                add_sender_tcp.clone(),
-                delete_sender_tcp.clone(),
-                add_sender_ns_udp.clone(),
-                delete_sender_ns_udp.clone(),
-                add_sender_ns_tcp.clone(),
-                delete_sender_ns_tcp.clone(),
                 update_cache_sender_udp.clone(),
-                update_cache_sender_tcp.clone(),
-                update_cache_sender_ns_udp.clone(),
-                update_cache_sender_ns_tcp.clone(),
                 new_algorithm,
             );
 
@@ -91,15 +73,7 @@ pub fn response_time_experiment(filename: String, new_algorithm: bool, new_file_
             resolver.set_sbelt(sbelt);
 
             thread::spawn(move || {
-                resolver.run_resolver(
-                    add_recv_udp,
-                    delete_recv_udp,
-                    add_recv_tcp,
-                    delete_recv_tcp,
-                    rx_update_cache_udp,
-                    rx_update_cache_tcp,
-                    true,
-                );
+                resolver.run_resolver(add_recv_udp, delete_recv_udp, rx_update_cache_udp, true);
             });
 
             ///////
@@ -117,14 +91,6 @@ pub fn response_time_experiment(filename: String, new_algorithm: bool, new_file_
 
             socket
                 .send_to(&[1; 50], RESOLVER_IP_PORT)
-                .expect("Couldn't send data to kill resolver");
-
-            // Sending TCP msg to kill resolver
-            let mut stream =
-                TcpStream::connect(RESOLVER_IP_PORT).expect("couldn't connect to address");
-
-            stream
-                .write(&[1; 50])
                 .expect("Couldn't send data to kill resolver");
 
             // Sleep
@@ -176,118 +142,8 @@ pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>, new
     response_times.insert(first_query.clone(), times_vec.clone());
     response_times.insert(second_query.clone(), times_vec);
 
-    // Run name servers
-
-    // Channels
-    let (delete_sender_udp, _delete_recv_udp) = mpsc::channel();
-    let (delete_sender_tcp, _delete_recv_tcp) = mpsc::channel();
-    let (add_sender_ns_udp, add_recv_ns_udp) = mpsc::channel();
-    let (delete_sender_ns_udp, delete_recv_ns_udp) = mpsc::channel();
-    let (add_sender_ns_tcp, add_recv_ns_tcp) = mpsc::channel();
-    let (delete_sender_ns_tcp, delete_recv_ns_tcp) = mpsc::channel();
-    let (_update_cache_sender_ns_udp, rx_update_cache_ns_udp) = mpsc::channel();
-    let (_update_cache_sender_ns_tcp, rx_update_cache_ns_tcp) = mpsc::channel();
-
-    // Root name server
-    let mut name_server = NameServer::new(
-        delete_sender_udp.clone(),
-        delete_sender_tcp.clone(),
-        add_sender_ns_udp.clone(),
-        delete_sender_ns_udp.clone(),
-        add_sender_ns_tcp.clone(),
-        delete_sender_ns_tcp.clone(),
-    );
-
-    name_server.add_zone_from_master_file(root_master_file.to_string(), "".to_string());
-
-    thread::spawn(move || {
-        name_server.run_name_server(
-            ROOT_NAMESERVER_IP_PORT.to_string(),
-            RESOLVER_IP_PORT.to_string(),
-            add_recv_ns_udp,
-            delete_recv_ns_udp,
-            add_recv_ns_tcp,
-            delete_recv_ns_tcp,
-            rx_update_cache_ns_udp,
-            rx_update_cache_ns_tcp,
-        );
-    });
-
-    // Child name server
-    // Channels
-    let (delete_sender_udp, _delete_recv_udp) = mpsc::channel();
-    let (delete_sender_tcp, _delete_recv_tcp) = mpsc::channel();
-    let (add_sender_ns_udp, add_recv_ns_udp) = mpsc::channel();
-    let (delete_sender_ns_udp, delete_recv_ns_udp) = mpsc::channel();
-    let (add_sender_ns_tcp, add_recv_ns_tcp) = mpsc::channel();
-    let (delete_sender_ns_tcp, delete_recv_ns_tcp) = mpsc::channel();
-    let (_update_cache_sender_ns_udp, rx_update_cache_ns_udp) = mpsc::channel();
-    let (_update_cache_sender_ns_tcp, rx_update_cache_ns_tcp) = mpsc::channel();
-
-    let mut name_server = NameServer::new(
-        delete_sender_udp.clone(),
-        delete_sender_tcp.clone(),
-        add_sender_ns_udp.clone(),
-        delete_sender_ns_udp.clone(),
-        add_sender_ns_tcp.clone(),
-        delete_sender_ns_tcp.clone(),
-    );
-
-    name_server.add_zone_from_master_file(child_master_file.to_string(), "".to_string());
-
-    thread::spawn(move || {
-        name_server.run_name_server(
-            CHILD_NAMESERVER_IP_PORT.to_string(),
-            RESOLVER_IP_PORT.to_string(),
-            add_recv_ns_udp,
-            delete_recv_ns_udp,
-            add_recv_ns_tcp,
-            delete_recv_ns_tcp,
-            rx_update_cache_ns_udp,
-            rx_update_cache_ns_tcp,
-        );
-    });
-
     for i in 0..5 {
-        if new_algorithm {
-            if i > 0 {
-                // Child name server
-                // Channels
-                let (delete_sender_udp, _delete_recv_udp) = mpsc::channel();
-                let (delete_sender_tcp, _delete_recv_tcp) = mpsc::channel();
-                let (add_sender_ns_udp, add_recv_ns_udp) = mpsc::channel();
-                let (delete_sender_ns_udp, delete_recv_ns_udp) = mpsc::channel();
-                let (add_sender_ns_tcp, add_recv_ns_tcp) = mpsc::channel();
-                let (delete_sender_ns_tcp, delete_recv_ns_tcp) = mpsc::channel();
-                let (_update_cache_sender_ns_udp, rx_update_cache_ns_udp) = mpsc::channel();
-                let (_update_cache_sender_ns_tcp, rx_update_cache_ns_tcp) = mpsc::channel();
-
-                let mut name_server = NameServer::new(
-                    delete_sender_udp.clone(),
-                    delete_sender_tcp.clone(),
-                    add_sender_ns_udp.clone(),
-                    delete_sender_ns_udp.clone(),
-                    add_sender_ns_tcp.clone(),
-                    delete_sender_ns_tcp.clone(),
-                );
-
-                name_server
-                    .add_zone_from_master_file(child_master_file.to_string(), "".to_string());
-
-                thread::spawn(move || {
-                    name_server.run_name_server(
-                        CHILD_NAMESERVER_IP_PORT.to_string(),
-                        RESOLVER_IP_PORT.to_string(),
-                        add_recv_ns_udp,
-                        delete_recv_ns_udp,
-                        add_recv_ns_tcp,
-                        delete_recv_ns_tcp,
-                        rx_update_cache_ns_udp,
-                        rx_update_cache_ns_tcp,
-                    );
-                });
-            }
-        }
+        if new_algorithm {}
 
         // Sleep
         let ten_millis = Duration::from_millis(1000);
@@ -297,30 +153,13 @@ pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>, new
         // Channels
         let (add_sender_udp, add_recv_udp) = mpsc::channel();
         let (delete_sender_udp, delete_recv_udp) = mpsc::channel();
-        let (add_sender_tcp, add_recv_tcp) = mpsc::channel();
-        let (delete_sender_tcp, delete_recv_tcp) = mpsc::channel();
-        let (add_sender_ns_udp, _add_recv_ns_udp) = mpsc::channel();
-        let (delete_sender_ns_udp, _delete_recv_ns_udp) = mpsc::channel();
-        let (add_sender_ns_tcp, _add_recv_ns_tcp) = mpsc::channel();
-        let (delete_sender_ns_tcp, _delete_recv_ns_tcp) = mpsc::channel();
+
         let (update_cache_sender_udp, rx_update_cache_udp) = mpsc::channel();
-        let (update_cache_sender_tcp, rx_update_cache_tcp) = mpsc::channel();
-        let (update_cache_sender_ns_udp, _rx_update_cache_ns_udp) = mpsc::channel();
-        let (update_cache_sender_ns_tcp, _rx_update_cache_ns_tcp) = mpsc::channel();
 
         let mut resolver = Resolver::new(
             add_sender_udp.clone(),
             delete_sender_udp.clone(),
-            add_sender_tcp.clone(),
-            delete_sender_tcp.clone(),
-            add_sender_ns_udp.clone(),
-            delete_sender_ns_udp.clone(),
-            add_sender_ns_tcp.clone(),
-            delete_sender_ns_tcp.clone(),
             update_cache_sender_udp.clone(),
-            update_cache_sender_tcp.clone(),
-            update_cache_sender_ns_udp.clone(),
-            update_cache_sender_ns_tcp.clone(),
             new_algorithm,
         );
 
@@ -339,15 +178,7 @@ pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>, new
         resolver.set_sbelt(sbelt);
 
         thread::spawn(move || {
-            resolver.run_resolver(
-                add_recv_udp,
-                delete_recv_udp,
-                add_recv_tcp,
-                delete_recv_tcp,
-                rx_update_cache_udp,
-                rx_update_cache_tcp,
-                false,
-            );
+            resolver.run_resolver(add_recv_udp, delete_recv_udp, rx_update_cache_udp, false);
         });
 
         // Sleep
@@ -367,51 +198,9 @@ pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>, new
                 .send_to(&[1; 50], CHILD_NAMESERVER_IP_PORT)
                 .expect("Couldn't kill udp child nameserver");
 
-            // Sending TCP msg to kill child name server
-            let mut stream =
-                TcpStream::connect(CHILD_NAMESERVER_IP_PORT).expect("couldn't connect to address");
-            stream
-                .write(&[1; 50])
-                .expect("Couldn't kill tcp child nameserver");
-
             // Sleep
             let ten_millis = Duration::from_millis(1000);
             thread::sleep(ten_millis);
-
-            // Child name server
-            // Channels
-            let (delete_sender_udp, _delete_recv_udp) = mpsc::channel();
-            let (delete_sender_tcp, _delete_recv_tcp) = mpsc::channel();
-            let (add_sender_ns_udp, add_recv_ns_udp) = mpsc::channel();
-            let (delete_sender_ns_udp, delete_recv_ns_udp) = mpsc::channel();
-            let (add_sender_ns_tcp, add_recv_ns_tcp) = mpsc::channel();
-            let (delete_sender_ns_tcp, delete_recv_ns_tcp) = mpsc::channel();
-            let (_update_cache_sender_ns_udp, rx_update_cache_ns_udp) = mpsc::channel();
-            let (_update_cache_sender_ns_tcp, rx_update_cache_ns_tcp) = mpsc::channel();
-
-            let mut name_server = NameServer::new(
-                delete_sender_udp.clone(),
-                delete_sender_tcp.clone(),
-                add_sender_ns_udp.clone(),
-                delete_sender_ns_udp.clone(),
-                add_sender_ns_tcp.clone(),
-                delete_sender_ns_tcp.clone(),
-            );
-
-            name_server.add_zone_from_master_file(master_files_names[2].clone(), "".to_string());
-
-            thread::spawn(move || {
-                name_server.run_name_server(
-                    CHILD_NAMESERVER_IP_PORT.to_string(),
-                    RESOLVER_IP_PORT.to_string(),
-                    add_recv_ns_udp,
-                    delete_recv_ns_udp,
-                    add_recv_ns_tcp,
-                    delete_recv_ns_tcp,
-                    rx_update_cache_ns_udp,
-                    rx_update_cache_ns_tcp,
-                );
-            });
         }
         // Sleep
         let ten_millis = Duration::from_millis(2000);
@@ -425,25 +214,11 @@ pub fn missconfigured_experiments(case: u8, master_files_names: Vec<String>, new
             .send_to(&[1; 50], RESOLVER_IP_PORT)
             .expect("couldn't send data");
 
-        // Sending TCP msg to kill resolver
-
-        let mut stream = TcpStream::connect(RESOLVER_IP_PORT).expect("couldn't connect to address");
-
-        stream.write(&[1; 50]).expect("Couldn't kill tcp resolver");
-
         // Sending Udp msg to kill child name server
         let socket = ResolverQuery::initilize_socket_udp(IP_TO_KILL_RESOLVER.to_string()).unwrap();
         socket
             .send_to(&[1; 50], CHILD_NAMESERVER_IP_PORT)
             .expect("couldn't send data");
-
-        // Sending TCP msg to kill child name server
-        let mut stream =
-            TcpStream::connect(CHILD_NAMESERVER_IP_PORT).expect("couldn't connect to address");
-
-        stream
-            .write(&[1; 50])
-            .expect("Couldn't kill tcp child nameserver");
 
         // Save response time
 
@@ -510,30 +285,13 @@ pub fn missconfigured_experiment_nxdomain(case: u8, new_algorithm: bool) {
         // Channels
         let (add_sender_udp, add_recv_udp) = mpsc::channel();
         let (delete_sender_udp, delete_recv_udp) = mpsc::channel();
-        let (add_sender_tcp, add_recv_tcp) = mpsc::channel();
-        let (delete_sender_tcp, delete_recv_tcp) = mpsc::channel();
-        let (add_sender_ns_udp, _add_recv_ns_udp) = mpsc::channel();
-        let (delete_sender_ns_udp, _delete_recv_ns_udp) = mpsc::channel();
-        let (add_sender_ns_tcp, _add_recv_ns_tcp) = mpsc::channel();
-        let (delete_sender_ns_tcp, _delete_recv_ns_tcp) = mpsc::channel();
+
         let (update_cache_sender_udp, rx_update_cache_udp) = mpsc::channel();
-        let (update_cache_sender_tcp, rx_update_cache_tcp) = mpsc::channel();
-        let (update_cache_sender_ns_udp, _rx_update_cache_ns_udp) = mpsc::channel();
-        let (update_cache_sender_ns_tcp, _rx_update_cache_ns_tcp) = mpsc::channel();
 
         let mut resolver = Resolver::new(
             add_sender_udp.clone(),
             delete_sender_udp.clone(),
-            add_sender_tcp.clone(),
-            delete_sender_tcp.clone(),
-            add_sender_ns_udp.clone(),
-            delete_sender_ns_udp.clone(),
-            add_sender_ns_tcp.clone(),
-            delete_sender_ns_tcp.clone(),
             update_cache_sender_udp.clone(),
-            update_cache_sender_tcp.clone(),
-            update_cache_sender_ns_udp.clone(),
-            update_cache_sender_ns_tcp.clone(),
             new_algorithm,
         );
 
@@ -552,15 +310,7 @@ pub fn missconfigured_experiment_nxdomain(case: u8, new_algorithm: bool) {
         resolver.set_sbelt(sbelt);
 
         thread::spawn(move || {
-            resolver.run_resolver(
-                add_recv_udp,
-                delete_recv_udp,
-                add_recv_tcp,
-                delete_recv_tcp,
-                rx_update_cache_udp,
-                rx_update_cache_tcp,
-                false,
-            );
+            resolver.run_resolver(add_recv_udp, delete_recv_udp, rx_update_cache_udp, false);
         });
 
         // Sleep
@@ -580,10 +330,6 @@ pub fn missconfigured_experiment_nxdomain(case: u8, new_algorithm: bool) {
         socket
             .send_to(&[1; 50], RESOLVER_IP_PORT)
             .expect("couldn't send data");
-
-        // Sending TCP msg to kill resolver
-        let mut stream = TcpStream::connect(RESOLVER_IP_PORT).expect("couldn't connect to address");
-        stream.write(&[1; 50]).expect("Couldn't kill tcp resolver");
 
         // Save response time
 
@@ -704,30 +450,13 @@ pub fn get_ns_records_from_child_zone(domains_file: String, save_file: String) {
     // Channels
     let (add_sender_udp, add_recv_udp) = mpsc::channel();
     let (delete_sender_udp, delete_recv_udp) = mpsc::channel();
-    let (add_sender_tcp, add_recv_tcp) = mpsc::channel();
-    let (delete_sender_tcp, delete_recv_tcp) = mpsc::channel();
-    let (add_sender_ns_udp, _add_recv_ns_udp) = mpsc::channel();
-    let (delete_sender_ns_udp, _delete_recv_ns_udp) = mpsc::channel();
-    let (add_sender_ns_tcp, _add_recv_ns_tcp) = mpsc::channel();
-    let (delete_sender_ns_tcp, _delete_recv_ns_tcp) = mpsc::channel();
+
     let (update_cache_sender_udp, rx_update_cache_udp) = mpsc::channel();
-    let (update_cache_sender_tcp, rx_update_cache_tcp) = mpsc::channel();
-    let (update_cache_sender_ns_udp, _rx_update_cache_ns_udp) = mpsc::channel();
-    let (update_cache_sender_ns_tcp, _rx_update_cache_ns_tcp) = mpsc::channel();
 
     let mut resolver = Resolver::new(
         add_sender_udp.clone(),
         delete_sender_udp.clone(),
-        add_sender_tcp.clone(),
-        delete_sender_tcp.clone(),
-        add_sender_ns_udp.clone(),
-        delete_sender_ns_udp.clone(),
-        add_sender_ns_tcp.clone(),
-        delete_sender_ns_tcp.clone(),
         update_cache_sender_udp.clone(),
-        update_cache_sender_tcp.clone(),
-        update_cache_sender_ns_udp.clone(),
-        update_cache_sender_ns_tcp.clone(),
         false,
     );
 
@@ -746,15 +475,7 @@ pub fn get_ns_records_from_child_zone(domains_file: String, save_file: String) {
     resolver.set_sbelt(sbelt);
 
     thread::spawn(move || {
-        resolver.run_resolver(
-            add_recv_udp,
-            delete_recv_udp,
-            add_recv_tcp,
-            delete_recv_tcp,
-            rx_update_cache_udp,
-            rx_update_cache_tcp,
-            true,
-        );
+        resolver.run_resolver(add_recv_udp, delete_recv_udp, rx_update_cache_udp, true);
     });
 
     // Sleep
@@ -818,11 +539,6 @@ pub fn get_ns_records_from_child_zone(domains_file: String, save_file: String) {
                 .send_to(&[1; 50], RESOLVER_IP_PORT)
                 .expect("couldn't send data");
 
-            // Sending TCP msg to kill child name server
-            let mut stream =
-                TcpStream::connect(RESOLVER_IP_PORT).expect("couldn't connect to address");
-            stream.write(&[1; 50]).expect("Couldn't kill tcp resolver");
-
             // Sleep
             let ten_millis = Duration::from_millis(1000);
             thread::sleep(ten_millis);
@@ -831,30 +547,12 @@ pub fn get_ns_records_from_child_zone(domains_file: String, save_file: String) {
             // Channels
             let (add_sender_udp, add_recv_udp) = mpsc::channel();
             let (delete_sender_udp, delete_recv_udp) = mpsc::channel();
-            let (add_sender_tcp, add_recv_tcp) = mpsc::channel();
-            let (delete_sender_tcp, delete_recv_tcp) = mpsc::channel();
-            let (add_sender_ns_udp, _add_recv_ns_udp) = mpsc::channel();
-            let (delete_sender_ns_udp, _delete_recv_ns_udp) = mpsc::channel();
-            let (add_sender_ns_tcp, _add_recv_ns_tcp) = mpsc::channel();
-            let (delete_sender_ns_tcp, _delete_recv_ns_tcp) = mpsc::channel();
             let (update_cache_sender_udp, rx_update_cache_udp) = mpsc::channel();
-            let (update_cache_sender_tcp, rx_update_cache_tcp) = mpsc::channel();
-            let (update_cache_sender_ns_udp, _rx_update_cache_ns_udp) = mpsc::channel();
-            let (update_cache_sender_ns_tcp, _rx_update_cache_ns_tcp) = mpsc::channel();
 
             let mut resolver = Resolver::new(
                 add_sender_udp.clone(),
                 delete_sender_udp.clone(),
-                add_sender_tcp.clone(),
-                delete_sender_tcp.clone(),
-                add_sender_ns_udp.clone(),
-                delete_sender_ns_udp.clone(),
-                add_sender_ns_tcp.clone(),
-                delete_sender_ns_tcp.clone(),
                 update_cache_sender_udp.clone(),
-                update_cache_sender_tcp.clone(),
-                update_cache_sender_ns_udp.clone(),
-                update_cache_sender_ns_tcp.clone(),
                 false,
             );
 
@@ -873,15 +571,7 @@ pub fn get_ns_records_from_child_zone(domains_file: String, save_file: String) {
             resolver.set_sbelt(sbelt);
 
             thread::spawn(move || {
-                resolver.run_resolver(
-                    add_recv_udp,
-                    delete_recv_udp,
-                    add_recv_tcp,
-                    delete_recv_tcp,
-                    rx_update_cache_udp,
-                    rx_update_cache_tcp,
-                    true,
-                );
+                resolver.run_resolver(add_recv_udp, delete_recv_udp, rx_update_cache_udp, true);
             });
 
             // Sleep
@@ -1003,30 +693,12 @@ pub fn find_affected_domains_experiment(
 
         let (add_sender_udp, add_recv_udp) = mpsc::channel();
         let (delete_sender_udp, delete_recv_udp) = mpsc::channel();
-        let (add_sender_tcp, add_recv_tcp) = mpsc::channel();
-        let (delete_sender_tcp, delete_recv_tcp) = mpsc::channel();
-        let (add_sender_ns_udp, _add_recv_ns_udp) = mpsc::channel();
-        let (delete_sender_ns_udp, _delete_recv_ns_udp) = mpsc::channel();
-        let (add_sender_ns_tcp, _add_recv_ns_tcp) = mpsc::channel();
-        let (delete_sender_ns_tcp, _delete_recv_ns_tcp) = mpsc::channel();
         let (update_cache_sender_udp, rx_update_cache_udp) = mpsc::channel();
-        let (update_cache_sender_tcp, rx_update_cache_tcp) = mpsc::channel();
-        let (update_cache_sender_ns_udp, _rx_update_cache_ns_udp) = mpsc::channel();
-        let (update_cache_sender_ns_tcp, _rx_update_cache_ns_tcp) = mpsc::channel();
 
         let mut resolver = Resolver::new(
             add_sender_udp.clone(),
             delete_sender_udp.clone(),
-            add_sender_tcp.clone(),
-            delete_sender_tcp.clone(),
-            add_sender_ns_udp.clone(),
-            delete_sender_ns_udp.clone(),
-            add_sender_ns_tcp.clone(),
-            delete_sender_ns_tcp.clone(),
             update_cache_sender_udp.clone(),
-            update_cache_sender_tcp.clone(),
-            update_cache_sender_ns_udp.clone(),
-            update_cache_sender_ns_tcp.clone(),
             new_algorithm,
         );
 
@@ -1045,15 +717,7 @@ pub fn find_affected_domains_experiment(
         resolver.set_sbelt(sbelt);
 
         thread::spawn(move || {
-            resolver.run_resolver(
-                add_recv_udp,
-                delete_recv_udp,
-                add_recv_tcp,
-                delete_recv_tcp,
-                rx_update_cache_udp,
-                rx_update_cache_tcp,
-                false,
-            );
+            resolver.run_resolver(add_recv_udp, delete_recv_udp, rx_update_cache_udp, false);
         });
 
         // Sleep
@@ -1087,10 +751,6 @@ pub fn find_affected_domains_experiment(
             .send_to(&[1; 50], RESOLVER_IP_PORT)
             .expect("couldn't send data");
 
-        // Sending TCP msg to kill resolver
-        let mut stream = TcpStream::connect(RESOLVER_IP_PORT).expect("couldn't connect to address");
-        stream.write(&[1; 50]).expect("Couldn't kill tcp resolver");
-
         // Open the file to append
         let mut file = OpenOptions::new()
             .write(true)
@@ -1118,30 +778,12 @@ pub fn find_affected_domains_experiment(
 fn test_affected_domain_algorithm(domain_name: String, new_algorithm: bool) -> Vec<Duration> {
     let (add_sender_udp, add_recv_udp) = mpsc::channel();
     let (delete_sender_udp, delete_recv_udp) = mpsc::channel();
-    let (add_sender_tcp, add_recv_tcp) = mpsc::channel();
-    let (delete_sender_tcp, delete_recv_tcp) = mpsc::channel();
-    let (add_sender_ns_udp, _add_recv_ns_udp) = mpsc::channel();
-    let (delete_sender_ns_udp, _delete_recv_ns_udp) = mpsc::channel();
-    let (add_sender_ns_tcp, _add_recv_ns_tcp) = mpsc::channel();
-    let (delete_sender_ns_tcp, _delete_recv_ns_tcp) = mpsc::channel();
     let (update_cache_sender_udp, rx_update_cache_udp) = mpsc::channel();
-    let (update_cache_sender_tcp, rx_update_cache_tcp) = mpsc::channel();
-    let (update_cache_sender_ns_udp, _rx_update_cache_ns_udp) = mpsc::channel();
-    let (update_cache_sender_ns_tcp, _rx_update_cache_ns_tcp) = mpsc::channel();
 
     let mut resolver = Resolver::new(
         add_sender_udp.clone(),
         delete_sender_udp.clone(),
-        add_sender_tcp.clone(),
-        delete_sender_tcp.clone(),
-        add_sender_ns_udp.clone(),
-        delete_sender_ns_udp.clone(),
-        add_sender_ns_tcp.clone(),
-        delete_sender_ns_tcp.clone(),
         update_cache_sender_udp.clone(),
-        update_cache_sender_tcp.clone(),
-        update_cache_sender_ns_udp.clone(),
-        update_cache_sender_ns_tcp.clone(),
         new_algorithm,
     );
 
@@ -1160,15 +802,7 @@ fn test_affected_domain_algorithm(domain_name: String, new_algorithm: bool) -> V
     resolver.set_sbelt(sbelt);
 
     thread::spawn(move || {
-        resolver.run_resolver(
-            add_recv_udp,
-            delete_recv_udp,
-            add_recv_tcp,
-            delete_recv_tcp,
-            rx_update_cache_udp,
-            rx_update_cache_tcp,
-            false,
-        );
+        resolver.run_resolver(add_recv_udp, delete_recv_udp, rx_update_cache_udp, false);
     });
 
     // Sleep
@@ -1193,10 +827,6 @@ fn test_affected_domain_algorithm(domain_name: String, new_algorithm: bool) -> V
         .send_to(&[1; 50], RESOLVER_IP_PORT)
         .expect("couldn't send data");
 
-    // Sending TCP msg to kill resolver
-    let mut stream = TcpStream::connect(RESOLVER_IP_PORT).expect("couldn't connect to address");
-    stream.write(&[1; 50]).expect("Couldn't kill tcp resolver");
-
     // Sleep
     let ten_millis = Duration::from_millis(3000);
     thread::sleep(ten_millis);
@@ -1212,12 +842,56 @@ fn test_affected_domain_algorithm(domain_name: String, new_algorithm: bool) -> V
 
 // Checks if a domain will be an affected domain
 pub fn is_affected_domain(domain_name: String) -> bool {
-    let times_parent_algorithm = test_affected_domain_algorithm(domain_name.clone(), false);
+    //let times_parent_algorithm = test_affected_domain_algorithm(domain_name.clone(), false);
     let times_child_algorithm = test_affected_domain_algorithm(domain_name.clone(), true);
 
-    if times_parent_algorithm[0].is_zero() == false && times_child_algorithm[1].is_zero() {
+    if times_child_algorithm[1].is_zero() {
         return true;
     } else {
         return false;
+    }
+}
+
+pub fn check_affected_domains(first_file: String, second_file: String, new_file: String) {
+    // Read the domains file
+    // Open file
+    let file = File::open(first_file).expect("file not found!");
+    let reader = BufReader::new(file);
+
+    let mut domains: Vec<String> = Vec::new();
+
+    // Read lines
+    for line in reader.lines() {
+        let new_line = line.unwrap();
+
+        domains.push(new_line);
+    }
+
+    /*
+    // Read the domains file
+    // Open file
+    let file = File::open(second_file).expect("file not found!");
+    let reader = BufReader::new(file);
+
+    // Read lines
+    for line in reader.lines() {
+        let new_line = line.unwrap();
+
+        domains.push(new_line);
+    }
+     */
+
+    for i in domains {
+        let affected = is_affected_domain(i.clone());
+
+        // Open the file to append
+        let mut file = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .open(new_file.clone())
+            .unwrap();
+
+        // Write info
+        write!(file, "{} {}\n", i.clone(), affected).expect("Couldn't write file");
     }
 }

@@ -10,8 +10,6 @@ use crate::message::DnsMessage;
 use crate::resolver::Resolver;
 
 use rand::{thread_rng, Rng};
-use std::io::Write;
-use std::net::TcpStream;
 use std::net::UdpSocket;
 use std::time::{Duration, Instant};
 
@@ -60,37 +58,8 @@ pub fn run_client(
         }
     }
 
-    // Send query by TCP
-    if TRANSPORT == "TCP" {
-        let mut stream = TcpStream::connect(RESOLVER_IP_PORT).expect("No connection");
-
-        let bytes = query_msg.to_bytes();
-
-        let msg_length: u16 = bytes.len() as u16;
-
-        let tcp_bytes_length = [(msg_length >> 8) as u8, msg_length as u8];
-
-        let full_msg = [&tcp_bytes_length, bytes.as_slice()].concat();
-
-        stream
-            .set_read_timeout(Some(Duration::from_millis(TIMEOUT * 1000)))
-            .expect("Set client readtimeout failed");
-
-        stream.write(&full_msg).expect("Tcp query could't send");
-
-        match Resolver::receive_tcp_msg(stream) {
-            Some(val) => {
-                dns_message = DnsMessage::from_bytes(&val).unwrap();
-            }
-            None => {
-                // Temporary Error;
-                return (Duration::from_millis(0), Vec::new(), true, Vec::new());
-            }
-        }
-    }
-
     let elapsed = now.elapsed();
-
+    println!("{}", elapsed.as_millis());
     // Get the message and print the information
     let header = dns_message.get_header();
     let answers = dns_message.get_answer();

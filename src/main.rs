@@ -4,11 +4,9 @@ pub mod dns_cache;
 pub mod domain_name;
 pub mod experiments;
 pub mod message;
-pub mod name_server;
 pub mod resolver;
 pub mod rr_cache;
 
-use crate::name_server::NameServer;
 use crate::resolver::slist::Slist;
 use crate::resolver::Resolver;
 
@@ -21,7 +19,7 @@ use crate::config::SBELT_ROOT_NAMES;
 pub fn main() {
     // Users input
     let mut input_line = String::new();
-    println!("Enter program to run [C/R/N/TRE/MCC1/MCC2/MCC3/MCC4/MCCZ1/MCCZ2/MCCZ3/MCD]\n - C: Dns client \n - R: Dns resolver \n - N: Dns Name Server \n - TRE: Time Response Experiment \n - MCCX: MissConfigured Case X \n - MCCZX: MissConfigured Zone Experiment number X \n - MCD: MissConfigured Domains Experiment");
+    println!("Enter program to run [C/R/TRE/MCC1/MCC2/MCC3/MCC4/MCCZ1/MCCZ2/MCCZ3/MCD]\n - C: Dns client \n - R: Dns resolver \n - TRE: Time Response Experiment \n - MCCX: MissConfigured Case X \n - MCCZX: MissConfigured Zone Experiment number X \n - MCD: MissConfigured Domains Experiment");
     std::io::stdin().read_line(&mut input_line).unwrap();
 
     let trim_input_line = input_line.trim();
@@ -182,35 +180,23 @@ pub fn main() {
 
         let affected = experiments::is_affected_domain(host_name.to_string());
         println!("{}", affected);
+    } else if trim_input_line == "VDA" {
+        experiments::check_affected_domains(
+            "affected_domains_upgrade_ns_credibility_final.txt".to_string(),
+            "domain_no_data_response_final.txt".to_string(),
+            "verificacion_affected_domains.txt".to_string(),
+        );
     } else {
         // Channels
         let (add_sender_udp, add_recv_udp) = mpsc::channel();
         let (delete_sender_udp, delete_recv_udp) = mpsc::channel();
-        let (add_sender_tcp, add_recv_tcp) = mpsc::channel();
-        let (delete_sender_tcp, delete_recv_tcp) = mpsc::channel();
-        let (add_sender_ns_udp, add_recv_ns_udp) = mpsc::channel();
-        let (delete_sender_ns_udp, delete_recv_ns_udp) = mpsc::channel();
-        let (add_sender_ns_tcp, add_recv_ns_tcp) = mpsc::channel();
-        let (delete_sender_ns_tcp, delete_recv_ns_tcp) = mpsc::channel();
         let (update_cache_sender_udp, rx_update_cache_udp) = mpsc::channel();
-        let (update_cache_sender_tcp, rx_update_cache_tcp) = mpsc::channel();
-        let (update_cache_sender_ns_udp, rx_update_cache_ns_udp) = mpsc::channel();
-        let (update_cache_sender_ns_tcp, rx_update_cache_ns_tcp) = mpsc::channel();
 
         if trim_input_line == "R" {
             let mut resolver = Resolver::new(
                 add_sender_udp.clone(),
                 delete_sender_udp.clone(),
-                add_sender_tcp.clone(),
-                delete_sender_tcp.clone(),
-                add_sender_ns_udp.clone(),
-                delete_sender_ns_udp.clone(),
-                add_sender_ns_tcp.clone(),
-                delete_sender_ns_tcp.clone(),
                 update_cache_sender_udp.clone(),
-                update_cache_sender_tcp.clone(),
-                update_cache_sender_ns_udp.clone(),
-                update_cache_sender_ns_tcp.clone(),
                 false,
             );
 
@@ -228,29 +214,12 @@ pub fn main() {
 
             resolver.set_sbelt(sbelt);
 
-            resolver.run_resolver(
-                add_recv_udp,
-                delete_recv_udp,
-                add_recv_tcp,
-                delete_recv_tcp,
-                rx_update_cache_udp,
-                rx_update_cache_tcp,
-                true,
-            );
+            resolver.run_resolver(add_recv_udp, delete_recv_udp, rx_update_cache_udp, true);
         } else if trim_input_line == "RNA" {
             let mut resolver = Resolver::new(
                 add_sender_udp.clone(),
                 delete_sender_udp.clone(),
-                add_sender_tcp.clone(),
-                delete_sender_tcp.clone(),
-                add_sender_ns_udp.clone(),
-                delete_sender_ns_udp.clone(),
-                add_sender_ns_tcp.clone(),
-                delete_sender_ns_tcp.clone(),
                 update_cache_sender_udp.clone(),
-                update_cache_sender_tcp.clone(),
-                update_cache_sender_ns_udp.clone(),
-                update_cache_sender_ns_tcp.clone(),
                 true,
             );
 
@@ -268,48 +237,7 @@ pub fn main() {
 
             resolver.set_sbelt(sbelt);
 
-            resolver.run_resolver(
-                add_recv_udp,
-                delete_recv_udp,
-                add_recv_tcp,
-                delete_recv_tcp,
-                rx_update_cache_udp,
-                rx_update_cache_tcp,
-                false,
-            );
-        } else if trim_input_line == "N" {
-            let mut input_line = String::new();
-            std::io::stdin().read_line(&mut input_line).unwrap();
-
-            let trim_input_line = input_line.trim();
-
-            let mut name_server = NameServer::new(
-                delete_sender_udp.clone(),
-                delete_sender_tcp.clone(),
-                add_sender_ns_udp.clone(),
-                delete_sender_ns_udp.clone(),
-                add_sender_ns_tcp.clone(),
-                delete_sender_ns_tcp.clone(),
-            );
-
-            let mut input_line = String::new();
-            println!("Insert MasterFile name: ");
-            std::io::stdin().read_line(&mut input_line).unwrap();
-
-            let master_file = input_line.trim();
-
-            name_server.add_zone_from_master_file(master_file.to_string(), "".to_string());
-
-            name_server.run_name_server(
-                trim_input_line.to_string(),
-                RESOLVER_IP_PORT.to_string(),
-                add_recv_ns_udp,
-                delete_recv_ns_udp,
-                add_recv_ns_tcp,
-                delete_recv_ns_tcp,
-                rx_update_cache_ns_udp,
-                rx_update_cache_ns_tcp,
-            );
+            resolver.run_resolver(add_recv_udp, delete_recv_udp, rx_update_cache_udp, false);
         }
     }
 }
